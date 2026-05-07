@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parseur Clinique — Épisodes &amp; Chronologie</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue: #2563eb; --blue-light: #dbeafe; --blue-dark: #1d4ed8;
+    --green: #16a34a; --red: #dc2626; --purple: #7c3aed;
+    --yellow: #ca8a04; --yellow-light: #fef9c3;
+    --gray: #6b7280; --gray-light: #f3f4f6; --gray-border: #e5e7eb;
+    --text: #111827; --text-light: #6b7280;
+    --radius: 8px; --shadow: 0 1px 3px rgba(0,0,0,.12);
+  }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; color: var(--text); min-height: 100vh; }
+
+  /* ── HEADER ── */
+  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 16px 26px; display: flex; align-items: center; gap: 12px; }
+  .header h1 { font-size: 1.25rem; font-weight: 700; }
+  .header p { font-size: .8rem; opacity: .8; margin-top: 2px; }
+  .badge-offline { background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3); padding: 3px 10px; border-radius: 20px; font-size: .73rem; margin-left: auto; white-space: nowrap; }
+
+  /* ── TABS ── */
+  .tab-bar { background: white; border-bottom: 2px solid var(--gray-border); display: flex; padding: 0 20px; gap: 0; position: sticky; top: 0; z-index: 50; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .tab-btn { padding: 13px 22px; font-size: .88rem; font-weight: 600; border: none; background: none; cursor: pointer; color: var(--gray); border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all .15s; white-space: nowrap; }
+  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-btn:hover:not(.active) { color: var(--text); background: var(--gray-light); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── LAYOUT ── */
+  .main { max-width: 1350px; margin: 0 auto; padding: 18px 14px; display: grid; gap: 16px; }
+  .card { background: white; border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--gray-border); }
+  .card-header { padding: 13px 17px; border-bottom: 1px solid var(--gray-border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .card-header h2 { font-size: .93rem; font-weight: 600; }
+  .card-body { padding: 17px; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--blue); color: white; font-size: .75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* ── FORMS ── */
+  textarea { width: 100%; border: 1px solid var(--gray-border); border-radius: var(--radius); padding: 11px; font-size: .875rem; font-family: inherit; resize: vertical; min-height: 170px; line-height: 1.6; transition: border-color .2s; }
+  textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+  input[type=number], input[type=text] { border: 1px solid var(--gray-border); border-radius: 6px; padding: 5px 8px; font-size: .84rem; font-family: inherit; }
+  input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
+  .btn { padding: 8px 16px; border: none; border-radius: var(--radius); font-size: .845rem; font-weight: 600; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-primary { background: var(--blue); color: white; }
+  .btn-primary:hover { background: var(--blue-dark); }
+  .btn-success { background: var(--green); color: white; }
+  .btn-success:hover { background: #15803d; }
+  .btn-outline { background: white; color: var(--text); border: 1px solid var(--gray-border); }
+  .btn-outline:hover { background: var(--gray-light); }
+  .btn-sm { padding: 4px 10px; font-size: .78rem; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 11px; }
+  .info-bar { background: var(--blue-light); border: 1px solid #93c5fd; border-radius: var(--radius); padding: 9px 12px; font-size: .81rem; color: #1e3a8a; display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+  .options-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 7px; margin-bottom: 10px; }
+  .option-item { display: flex; align-items: center; gap: 8px; font-size: .83rem; cursor: pointer; padding: 5px 9px; border-radius: 6px; border: 1px solid var(--gray-border); }
+  .option-item:hover { background: var(--gray-light); }
+  .option-item input { accent-color: var(--blue); }
+
+  /* ── EPISODE TABLE ── */
+  .results-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 11px; }
+  .count-badge { background: var(--blue-light); color: var(--blue-dark); padding: 3px 10px; border-radius: 20px; font-size: .78rem; font-weight: 600; }
+  .ep-table { width: 100%; border-collapse: collapse; font-size: .83rem; }
+  .ep-table th { background: var(--gray-light); padding: 8px 10px; text-align: left; font-weight: 600; font-size: .77rem; color: var(--text-light); border-bottom: 2px solid var(--gray-border); white-space: nowrap; }
+  .ep-table td { padding: 6px 10px; border-bottom: 1px solid var(--gray-border); vertical-align: middle; }
+  .ep-table tr:hover td { background: #f8fafc; }
+  .ep-table tr:last-child td { border-bottom: none; }
+  .cell-date input { width: 108px; border: 1px solid transparent; border-radius: 4px; padding: 3px 5px; font-size: .83rem; font-family: inherit; background: transparent; }
+  .cell-date input:focus { border-color: var(--blue); background: white; outline: none; }
+  .cell-type select { border: 1px solid transparent; border-radius: 4px; padding: 3px 5px; font-size: .81rem; font-family: inherit; background: transparent; min-width: 155px; }
+  .cell-type select:focus { border-color: var(--blue); background: white; outline: none; }
+  .score-wrap { display: flex; align-items: center; gap: 4px; }
+  .score-wrap button { width: 19px; height: 19px; border: 1px solid var(--gray-border); background: white; border-radius: 4px; cursor: pointer; font-size: .9rem; line-height: 1; display: flex; align-items: center; justify-content: center; }
+  .score-wrap button:hover { background: var(--gray-light); }
+  .score-wrap input { width: 42px; text-align: center; border: 1px solid var(--gray-border); border-radius: 4px; padding: 2px; font-size: .83rem; }
+  .kw-list { display: flex; flex-wrap: wrap; gap: 3px; }
+  .kw { background: var(--gray-light); border: 1px solid var(--gray-border); padding: 1px 5px; border-radius: 3px; font-size: .7rem; color: var(--text-light); }
+  .kw-trigger { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+  .kw-symptom { background: #f0fdf4; border-color: #86efac; color: #166534; }
+  .kw-hosp { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+  .conf-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .conf-high { background: var(--green); }
+  .conf-med { background: #f59e0b; }
+  .conf-low { background: var(--gray); }
+  .ctx-preview { font-size: .76rem; color: var(--text-light); font-style: italic; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+  .ctx-preview:hover { color: var(--text); text-decoration: underline; }
+  .del-row { color: var(--red); background: none; border: none; cursor: pointer; font-size: .9rem; opacity: .35; }
+  .del-row:hover { opacity: 1; }
+  .no-results { text-align: center; padding: 36px 20px; color: var(--text-light); }
+  .ep-legend { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 13px; font-size: .78rem; }
+  .ep-legend-item { display: flex; align-items: center; gap: 5px; }
+  .type-tag { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: .73rem; font-weight: 600; white-space: nowrap; }
+  .type-manie       { background: #fef08a; color: #713f12; }
+  .type-hypomanie   { background: #fde68a; color: #92400e; }
+  .type-excitation  { background: #fef9c3; color: #ca8a04; }
+  .type-instabilite { background: #f3f4f6; color: #374151; }
+  .type-fluct-dep   { background: #e0f2fe; color: #0369a1; }
+  .type-dep         { background: #bfdbfe; color: #1e40af; }
+  .type-dep-severe  { background: #1d4ed8; color: white; }
+  .type-hospitalisation { background: #fee2e2; color: #991b1b; }
+  .type-inconnu     { background: #fef3c7; color: #92400e; }
+
+  /* ── CHRONOLOGY TABLE ── */
+  .chron-settings { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+  .chron-settings label { font-size: .85rem; font-weight: 600; color: var(--text); }
+  .chron-settings input[type=number] { width: 80px; }
+  .chron-export { margin-left: auto; display: flex; gap: 8px; }
+
+  .chron-table { width: 100%; border-collapse: collapse; font-size: .83rem; }
+  .chron-table th { background: #1e3a5f; color: white; padding: 9px 12px; text-align: left; font-weight: 600; font-size: .78rem; white-space: nowrap; }
+  .chron-table td { padding: 0; border-bottom: 1px solid var(--gray-border); vertical-align: top; }
+  .chron-table tr:last-child td { border-bottom: none; }
+
+  /* Period group row */
+  .period-row td { background: #f0f4ff; border-bottom: 1px solid #c7d2fe !important; font-weight: 700; padding: 7px 12px; color: #1e40af; }
+  .period-date { font-size: .9rem; }
+  .period-age { background: #1e40af; color: white; padding: 2px 8px; border-radius: 12px; font-size: .75rem; font-weight: 700; margin-left: 8px; }
+
+  /* Event rows inside period */
+  .ev-row td { padding: 5px 12px 5px 24px; background: white; }
+  .ev-row:last-of-type td { padding-bottom: 9px; }
+  .ev-cat { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 12px; font-size: .73rem; font-weight: 600; white-space: nowrap; }
+  .ev-label { font-size: .83rem; color: var(--text); max-width: 600px; }
+  .ev-source { font-size: .73rem; color: var(--text-light); font-style: italic; margin-top: 2px; max-width: 580px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .ev-source:hover { color: var(--text); text-decoration: underline; }
+
+  /* Category colors */
+  .cat-incident    { background: #fee2e2; color: #991b1b; }
+  .cat-hosp        { background: #fce7f3; color: #9d174d; }
+  .cat-traitement  { background: var(--blue-light); color: var(--blue-dark); }
+  .cat-substance   { background: #ffedd5; color: #9a3412; }
+  .cat-consultation{ background: #dcfce7; color: #15803d; }
+  .cat-vie         { background: #fef9c3; color: #92400e; }
+  .cat-symptome    { background: #f3f4f6; color: #374151; }
+
+  /* ── MODAL ── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: var(--radius); max-width: 640px; width: 92%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+  .modal-head { padding: 13px 17px; border-bottom: 1px solid var(--gray-border); display: flex; justify-content: space-between; align-items: center; }
+  .modal-body { padding: 17px; font-size: .875rem; line-height: 1.7; white-space: pre-wrap; }
+  .modal-close { background: none; border: none; cursor: pointer; font-size: 1.1rem; color: var(--gray); }
+  .modal-close:hover { color: var(--text); }
+
+  @media (max-width: 768px) {
+    .ep-table, .chron-table { display: block; overflow-x: auto; }
+    .chron-export { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="font-size:26px">🧠</div>
+  <div>
+    <h1>Parseur Clinique — Épisodes &amp; Chronologie</h1>
+    <p>Extraction semi-automatique depuis texte clinique narratif · v3</p>
+  </div>
+  <span class="badge-offline">🔒 100 % hors-ligne</span>
+</div>
+
+<!-- TABS -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('episodes',this)">🧩 Épisodes thymiques</button>
+  <button class="tab-btn" onclick="switchTab('chronology',this)">📅 Chronologie générale</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     SHARED: Step 1 — Text input
+     ════════════════════════════════════════════════════════════════ -->
+<div class="main">
+
+<div class="card">
+  <div class="card-header">
+    <div class="step-num">1</div>
+    <h2>Coller le texte clinique</h2>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <label style="font-size:.83rem;font-weight:600;display:flex;align-items:center;gap:7px">
+        Année de naissance du patient :
+        <input type="number" id="birth-year" placeholder="ex: 1978" min="1900" max="2020"
+          style="width:90px" oninput="onBirthYearChange()">
+      </label>
+      <span id="char-count" style="font-size:.78rem;color:var(--text-light)">0 car.</span>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="info-bar">
+      ℹ️ Ce parseur fonctionne en deux modes : <strong>Épisodes thymiques</strong> (classifie les fluctuations d'humeur) et <strong>Chronologie générale</strong> (extrait TOUS les événements datés — traitements, consultations, vie sociale, incidents — sans filtre thymique).
+    </div>
+    <textarea id="input-text" placeholder="Collez ici le texte clinique narratif complet…"></textarea>
+    <div class="toolbar">
+      <button class="btn btn-primary" onclick="runActiveTab()">🔍 Analyser <small style="opacity:.7;font-weight:400">(Ctrl+Entrée)</small></button>
+      <button class="btn btn-outline" onclick="clearAll()">🗑 Effacer</button>
+      <button class="btn btn-outline btn-sm" onclick="loadExample()">📋 Exemple</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     TAB 1 — ÉPISODES THYMIQUES
+     ════════════════════════════════════════════════════════════════ -->
+<div id="tab-episodes" class="tab-content active">
+
+  <!-- Options -->
+  <div class="card">
+    <div class="card-header"><div class="step-num">2</div><h2>Options — Épisodes thymiques</h2></div>
+    <div class="card-body">
+      <div class="options-grid">
+        <label class="option-item"><input type="checkbox" id="opt-manie" checked> Manie (+4/+5)</label>
+        <label class="option-item"><input type="checkbox" id="opt-hypomanie" checked> Hypomanie (+3)</label>
+        <label class="option-item"><input type="checkbox" id="opt-excitation" checked> Fluctuation d'excitation (+2)</label>
+        <label class="option-item"><input type="checkbox" id="opt-instabilite" checked> Instabilité thymique (0)</label>
+        <label class="option-item"><input type="checkbox" id="opt-fluct-dep" checked> Fluctuation dépressive (-2)</label>
+        <label class="option-item"><input type="checkbox" id="opt-dep" checked> Épisode dépressif (-3)</label>
+        <label class="option-item"><input type="checkbox" id="opt-dep-severe" checked> Épisode dép. sévère (-4/-5)</label>
+        <label class="option-item"><input type="checkbox" id="opt-hosp" checked> Hospitalisations</label>
+        <label class="option-item"><input type="checkbox" id="opt-low-conf"> Inclure faible confiance</label>
+      </div>
+      <div style="font-size:.78rem;color:var(--text-light)">
+        Confiance : <span style="color:var(--green)">●</span> Haute &nbsp;|&nbsp; <span style="color:#f59e0b">●</span> Moyenne &nbsp;|&nbsp; <span style="color:var(--gray)">●</span> Faible
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" id="ep-results-card" style="display:none">
+    <div class="card-header"><div class="step-num">3</div><h2>Épisodes détectés</h2></div>
+    <div class="card-body">
+      <div class="results-header">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span id="ep-count" class="count-badge">0 épisodes</span>
+          <span style="font-size:.8rem;color:var(--text-light)">Ajustez le niveau et le type avant d'exporter</span>
+        </div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="addEpRow()">➕ Ajouter</button>
+          <button class="btn btn-success btn-sm" onclick="exportEpCSV()">📥 CSV (Excel)</button>
+          <button class="btn btn-outline btn-sm" onclick="copyEpTSV()">📋 Copier</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="ep-table">
+          <thead><tr>
+            <th>Conf.</th><th>Date début</th><th>Date fin</th>
+            <th>Type</th><th>Niveau</th><th>Facteurs / mots-clés</th>
+            <th>Contexte</th><th></th>
+          </tr></thead>
+          <tbody id="ep-tbody"></tbody>
+        </table>
+      </div>
+      <div class="ep-legend">
+        <strong>Types :</strong>
+        <span class="ep-legend-item"><span class="type-tag type-manie">Manie</span> +4/+5</span>
+        <span class="ep-legend-item"><span class="type-tag type-hypomanie">Hypomanie</span> +3</span>
+        <span class="ep-legend-item"><span class="type-tag type-excitation">Fluct. excitation</span> +2</span>
+        <span class="ep-legend-item"><span class="type-tag type-instabilite">Instabilité</span> 0</span>
+        <span class="ep-legend-item"><span class="type-tag type-fluct-dep">Fluct. dépressive</span> -2</span>
+        <span class="ep-legend-item"><span class="type-tag type-dep">Épisode dépressif</span> -3</span>
+        <span class="ep-legend-item"><span class="type-tag type-dep-severe">Épisode dép. sévère</span> -4/-5</span>
+        <span class="ep-legend-item"><span class="type-tag type-hospitalisation">🏥 Hosp.</span></span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /tab-episodes -->
+
+<!-- ════════════════════════════════════════════════════════════════
+     TAB 2 — CHRONOLOGIE GÉNÉRALE
+     ════════════════════════════════════════════════════════════════ -->
+<div id="tab-chronology" class="tab-content">
+
+  <!-- Options -->
+  <div class="card">
+    <div class="card-header"><div class="step-num">2</div><h2>Options — Chronologie générale</h2></div>
+    <div class="card-body">
+      <div class="info-bar">
+        📅 Extrait <strong>tous les événements datés</strong> du texte, sans filtre thymique : traitements, consultations, vie sociale, incidents, symptômes. Les événements à moins de <strong>3 mois d'écart</strong> sont regroupés dans la même période. L'âge est calculé depuis l'année de naissance saisie ci-dessus.
+      </div>
+      <div class="options-grid">
+        <label class="option-item"><input type="checkbox" id="chr-incident" checked> ⚠️ Incidents psychiatriques</label>
+        <label class="option-item"><input type="checkbox" id="chr-hosp" checked> 🏥 Hospitalisations</label>
+        <label class="option-item"><input type="checkbox" id="chr-traitement" checked> 💊 Traitements / médicaments</label>
+        <label class="option-item"><input type="checkbox" id="chr-substance" checked> 🚬 Substances / addictions</label>
+        <label class="option-item"><input type="checkbox" id="chr-consultation" checked> 👨‍⚕️ Consultations / suivi</label>
+        <label class="option-item"><input type="checkbox" id="chr-vie" checked> 📅 Événements de vie</label>
+        <label class="option-item"><input type="checkbox" id="chr-symptome" checked> 🧠 Symptômes / humeur</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:.82rem;color:var(--text-light)">
+        <label style="display:flex;align-items:center;gap:7px;color:var(--text);font-weight:600">
+          Regrouper à moins de
+          <input type="number" id="group-months" value="3" min="1" max="12" style="width:52px"> mois
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" id="chr-results-card" style="display:none">
+    <div class="card-header">
+      <div class="step-num">3</div>
+      <h2>Chronologie</h2>
+      <span id="chr-count" class="count-badge" style="margin-left:8px">0 événements</span>
+      <div style="margin-left:auto;display:flex;gap:7px">
+        <button class="btn btn-success btn-sm" onclick="exportChrCSV()">📥 CSV (Excel)</button>
+        <button class="btn btn-outline btn-sm" onclick="copyChrTSV()">📋 Copier</button>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0">
+      <div style="overflow-x:auto">
+        <table class="chron-table" id="chron-table">
+          <thead><tr>
+            <th style="width:160px">Période</th>
+            <th style="width:100px">Catégorie</th>
+            <th>Événement / Résumé</th>
+            <th>Source (extrait)</th>
+          </tr></thead>
+          <tbody id="chr-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /tab-chronology -->
+
+</div><!-- /main -->
+
+<!-- Modal -->
+<div class="modal-overlay" id="ctx-modal">
+  <div class="modal">
+    <div class="modal-head"><strong>Contexte extrait</strong><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" id="modal-content"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════════
+let activeTab = 'episodes';
+function switchTab(name, btn) {
+  activeTab = name;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+function runActiveTab() {
+  if (activeTab === 'episodes') parseEpisodes();
+  else parseChronology();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SHARED: DATES
+// ═══════════════════════════════════════════════════════════════════
+const MONTHS_FR = {
+  'janvier':1,'février':2,'fevrier':2,'mars':3,'avril':4,'mai':5,'juin':6,
+  'juillet':7,'août':8,'aout':8,'septembre':9,'octobre':10,'novembre':11,'décembre':12,'decembre':12
+};
+const MN = Object.keys(MONTHS_FR).join('|');
+
+function parseFrDate(str) {
+  if (!str) return null;
+  str = str.trim().toLowerCase();
+  let q = '';
+  str = str.replace(/^(fin\s+de\s+|fin\s+|début\s+|mi-?|milieu\s+de\s+|courant\s+|à\s+partir\s+(?:de|du)?\s*|depuis\s+|dès\s+|vers\s+|au\s+cours\s+de\s+)/i, m => { q = m.trim(); return ''; }).trim();
+  let m;
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (m) return { d:+m[1], mo:+m[2], y:+m[3], q };
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);        if (m) return { d:+m[3], mo:+m[2], y:+m[1], q };
+  m = str.match(/^(\d{1,2})\/(\d{4})$/);              if (m) return { d:null, mo:+m[1], y:+m[2], q };
+  m = str.match(new RegExp(`(${MN})\\s+(\\d{4})`));   if (m) return { d:null, mo:MONTHS_FR[m[1]], y:+m[2], q };
+  m = str.match(/(?:été|printemps|automne|hiver)\s+(\d{4})/); if (m) return { d:null, mo:null, y:+m[1], q:'saison' };
+  m = str.match(/\b(19|20)(\d{2})\b/);                if (m) return { d:null, mo:null, y:+m[0], q };
+  return null;
+}
+function dateStr(d) {
+  if (!d) return '';
+  if (d.d && d.mo) return `${String(d.d).padStart(2,'0')}/${String(d.mo).padStart(2,'0')}/${d.y}`;
+  if (d.mo) return `${String(d.mo).padStart(2,'0')}/${d.y}`;
+  return `${d.y}`;
+}
+function dateToMonths(d) {
+  if (!d) return 0;
+  return d.y * 12 + (d.mo || 1);
+}
+function extractDates(text) {
+  const results = [], seen = new Set();
+  const pat = new RegExp(
+    `(?:(?:fin\\s+de\\s+|fin\\s+|début\\s+|mi-?|milieu\\s+de\\s+|courant\\s+|à\\s+partir\\s+(?:de|du)?\\s*|depuis\\s+|dès\\s+|vers\\s+|au\\s+cours\\s+de\\s+)\\s*)?`+
+    `(?:(?:${MN})\\s+\\d{4}|\\d{1,2}\\/\\d{1,2}\\/\\d{4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\/\\d{4}|(?:été|printemps|automne|hiver)\\s+\\d{4}|\\b(?:19|20)\\d{2}\\b)`,
+    'gi'
+  );
+  let m;
+  while ((m = pat.exec(text)) !== null) {
+    const p = parseFrDate(m[0]);
+    if (p) { const k = `${p.y}-${p.mo}-${p.d}`; if (!seen.has(k)) { seen.add(k); results.push(p); } }
+  }
+  return results;
+}
+function calcAge(dateObj, birthYear) {
+  if (!dateObj || !birthYear) return null;
+  return dateObj.y - birthYear;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EPISODE PARSER (Tab 1)
+// ═══════════════════════════════════════════════════════════════════
+
+const EPISODE_TYPES = [
+  { id:'manie',       label:'Manie',              css:'type-manie',        score:4,  optId:'opt-manie',
+    strong:['épisode maniaque','accès maniaque','état maniaque','rechute maniaque','maniaque avec comportements','mise en danger'],
+    weak:['maniaque','manie'] },
+  { id:'hypomanie',   label:'Hypomanie',           css:'type-hypomanie',    score:3,  optId:'opt-hypomanie',
+    strong:['hypomanie','hypomaniaque','accès hypomaniaque','épisode hypomaniaque','amélioration spectaculaire de son état thymique','amélioration spectaculaire','amélioration assez spectaculaire','amélioration thymique spectaculaire'],
+    weak:['hypomani','amélioration thymique'] },
+  { id:'excitation',  label:"Fluct. d'excitation", css:'type-excitation',   score:2,  optId:'opt-excitation',
+    strong:['fluctuation.*excitation','excitation thymique','fluctuation d\'excitation','réduction du besoin de sommeil sans fatigue','réduction de son temps de sommeil sans fatigue','réduction du besoin de sommeil','humeur enjouée','gaie et heureuse','idées vont plus vite','idées qui vont plus vite','parlant plus facilement et spontanément','agitée.*enjouée','période d\'amélioration spontanée de l\'humeur'],
+    weak:['enjouée','gaie','énergie augmentée','sans fatigue'] },
+  { id:'instabilite', label:'Instabilité thymique',css:'type-instabilite',  score:0,  optId:'opt-instabilite',
+    strong:['instabilité thymique','fluctuations thymiques','labilité thymique','état thymique fluctuant','fluctuations de son humeur','fluctuations de l\'humeur','instabilité de l\'humeur'],
+    weak:['instabilité thymique'] },
+  { id:'dep-severe',  label:'Épisode dép. sévère', css:'type-dep-severe',   score:-4, optId:'opt-dep-severe',
+    strong:['épisode dépressif sévère','état dépressif sévère','dépression sévère','d\'intensité sévère','clinophilie','idées suicidaires','idéation suicidaire','tentative de suicide','passage à l\'acte suicidaire','imv par','intoxication médicamenteuse volontaire'],
+    weak:['dépression sévère','clinophile','clinophilie'] },
+  { id:'dep',         label:'Épisode dépressif',   css:'type-dep',          score:-3, optId:'opt-dep',
+    strong:['épisode dépressif','état dépressif','épisode dépressif caractérisé','récurrence dépressive','nouvel épisode dépressif','trouble dépressif récurrent','rechute dépressive'],
+    weak:['épisode dépressif','état dépressif'] },
+  { id:'fluct-dep',   label:'Fluct. dépressive',   css:'type-fluct-dep',    score:-2, optId:'opt-fluct-dep',
+    strong:['fluctuation dépressive','fluctuations dépressives','éléments dépressifs','symptômes dépressifs','symptômes de la lignée dépressive','humeur basse','humeur dépressive','morosité de l\'humeur','morosité','mal être','tristesse','période dépressive','ressenti dépressif','composante dépressive','déprime','moins bon fonctionnement'],
+    weak:['tristesse','anxiété','abattement','anhédonie','hypersomnie','perte de motivation'] }
+];
+
+const MOOD_REQUIRED = ['humeur','thymique','thymie','dépressif','dépressive','dépression','déprimé','fluctuation','hypomanie','hypomaniaque','maniaque','manie','excitation','tristesse','morosité','clinophilie','hypersomnie','anhédonie','clinophile','épisode thymique','état thymique','instabilité thymique','réduction du besoin de sommeil','réduction de son temps de sommeil','amélioration spectaculaire','idées suicidaires','tentative de suicide','imv','intoxication médicamenteuse','symptômes dépressifs','éléments dépressifs','mal être','mal-être','humeur enjouée','gaie et heureuse','ralentissement psychomoteur'];
+
+const EP_TRIGGERS = [{w:'divorce',l:'divorce'},{w:'séparation',l:'séparation'},{w:'rupture',l:'rupture'},{w:'deuil',l:'deuil'},{w:'décès',l:'décès'},{w:'burn out',l:'burnout'},{w:'épuisement professionnel',l:'épuisement'},{w:'grossesse',l:'grossesse'},{w:'post-partum',l:'post-partum'},{w:'sevrage',l:'sevrage'},{w:'arrêt de travail',l:'arrêt travail'},{w:'harcèlement',l:'harcèlement'},{w:'interruption du traitement',l:'arrêt traitement'},{w:'rupture de traitement',l:'arrêt traitement'},{w:'luminothérapie',l:'luminothérapie'},{w:'effexor',l:'Effexor'},{w:'mirtazapine',l:'Mirtazapine'}];
+const EP_SYMPTOMS = [{w:'hypersomnie',l:'hypersomnie'},{w:'insomnie',l:'insomnie'},{w:'clinophilie',l:'clinophilie'},{w:'fatigue',l:'fatigue'},{w:'anhédonie',l:'anhédonie'},{w:'idées suicidaires',l:'idées suicidaires'},{w:'agitation',l:'agitation'},{w:'irritabilité',l:'irritabilité'},{w:'perte de poids',l:'↓poids'},{w:'prise de poids',l:'↑poids'},{w:'perte d\'intérêts',l:'↓intérêts'},{w:'perte des intérêts',l:'↓intérêts'},{w:'manque d\'envie',l:'↓élan'},{w:'idées vont plus vite',l:'fuite des idées'},{w:'réduction du besoin de sommeil',l:'↓besoin sommeil'}];
+
+function hasMoodKw(lower) { return MOOD_REQUIRED.some(k => lower.includes(k)); }
+
+function classifyEpisode(text) {
+  const lower = text.toLowerCase();
+  if (!hasMoodKw(lower)) return { type:null, score:0, conf:'low', matched:[], triggers:[], symptoms:[] };
+  const hospKw = ['hospitalis','hôpital','hopital','chsf','chu','clinique de','k. bicêtre','service de psychiatrie'];
+  const isHosp = hospKw.some(k => lower.includes(k));
+  let matched=[], foundType=null, foundScore=0, strongCount=0;
+  for (const t of EPISODE_TYPES) {
+    for (const kw of t.strong) {
+      try { if (lower.match(new RegExp(kw,'i'))) { matched.push({text:kw.substring(0,22),cat:'type'}); strongCount++; if(!foundType){foundType=t.id;foundScore=t.score;} } }
+      catch(e) { if(lower.includes(kw)){matched.push({text:kw.substring(0,22),cat:'type'});strongCount++;if(!foundType){foundType=t.id;foundScore=t.score;}} }
+    }
+    if (foundType) break;
+  }
+  if (!foundType) {
+    for (const t of EPISODE_TYPES) {
+      for (const kw of t.weak) { if (lower.includes(kw)) { matched.push({text:kw,cat:'type'}); foundType=t.id; foundScore=t.score; break; } }
+      if (foundType) break;
+    }
+  }
+  const triggers=[]; for(const {w,l} of EP_TRIGGERS) if(lower.includes(w)&&!triggers.includes(l)) triggers.push(l);
+  const symptoms=[]; for(const {w,l} of EP_SYMPTOMS) if(lower.includes(w)&&!symptoms.includes(l)) symptoms.push(l);
+  const conf = strongCount>=2?'high':foundType?'medium':(triggers.length||symptoms.length)?'low':'low';
+  if(foundType && !document.getElementById(EPISODE_TYPES.find(t=>t.id===foundType)?.optId||'opt-manie').checked) foundType=null;
+  return { type:foundType, score:foundScore, conf, matched:matched.slice(0,3), triggers:triggers.slice(0,3), symptoms:symptoms.slice(0,2) };
+}
+
+function extractDateRanges(text) {
+  const ranges=[];
+  const pat=new RegExp(`(?:entre|de|du|depuis)\\s+((?:(?:fin|début|mi-?)\\s+)?(?:(?:${MN})\\s+)?\\d{4}(?:-\\d{2}-\\d{2})?(?:\\/\\d{2,4})?)\\s+(?:et|au?\\s+|jusqu['\u2019]?(?:en|à|au?)\\s*)((?:(?:fin|début|mi-?)\\s+)?(?:(?:${MN})\\s+)?\\d{4}(?:-\\d{2}-\\d{2})?(?:\\/\\d{2,4})?)`, 'gi');
+  let m;
+  while((m=pat.exec(text))!==null){
+    const s=parseFrDate(m[1]),e=parseFrDate(m[2]);
+    if(s&&e&&(e.y>s.y||(e.y===s.y&&(e.mo||0)>=(s.mo||0)))) ranges.push({start:s,end:e,pos:m.index,len:m[0].length});
+  }
+  return ranges;
+}
+
+let epData = [];
+function parseEpisodes() {
+  const text = document.getElementById('input-text').value.trim();
+  if (!text) { alert('Veuillez coller du texte.'); return; }
+  epData = doParseEpisodes(text);
+  document.getElementById('ep-results-card').style.display = '';
+  renderEpTable();
+  document.getElementById('ep-results-card').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function doParseEpisodes(text) {
+  const episodes=[], addedKeys=new Set();
+  function epKey(s,e){ return `${s?.y}-${s?.mo}-${e?.y}-${e?.mo}`; }
+  function tryAdd(ep){
+    if(ep.type==='hospitalisation'&&!document.getElementById('opt-hosp').checked) return;
+    if(ep.type&&ep.type!=='hospitalisation'){const t=EPISODE_TYPES.find(x=>x.id===ep.type);if(t&&!document.getElementById(t.optId).checked)return;}
+    if(ep.conf==='low'&&!document.getElementById('opt-low-conf').checked) return;
+    const k=epKey(ep.startDate,ep.endDate);
+    if(addedKeys.has(k)) return;
+    addedKeys.add(k); episodes.push(ep);
+  }
+  // Pass 1: ranges
+  for(const rng of extractDateRanges(text)){
+    const ctx=text.substring(Math.max(0,rng.pos-150),Math.min(text.length,rng.pos+400));
+    const cl=classifyEpisode(ctx);
+    if(!cl.type&&cl.conf==='low') continue;
+    tryAdd({startDate:rng.start,endDate:rng.end,type:cl.type,score:cl.score,conf:cl.conf,matched:cl.matched,triggers:cl.triggers,symptoms:cl.symptoms,context:ctx.trim()});
+  }
+  // Pass 2: sentences
+  const sents=text.split(/(?<=[.!?;])\s+(?=[A-ZÀ-Ü•\-])|(?:^|\n)\s*[•·\-]\s+/m).filter(s=>s.trim().length>20);
+  for(const sent of sents){
+    const lower=sent.toLowerCase();
+    if(!hasMoodKw(lower)) continue;
+    const hospKw=['hospitalis','service de psychiatrie','k. bicêtre','chsf','clinique de'];
+    const isHosp=hospKw.some(k=>lower.includes(k));
+    const dates=extractDates(sent);
+    if(!dates.length) continue;
+    const cl=classifyEpisode(sent);
+    const s=dates[0], e=dates.length>1?dates[dates.length-1]:null;
+    const endDate=(e&&(e.y!==s.y||e.mo!==s.mo))?e:null;
+    if(isHosp&&document.getElementById('opt-hosp').checked){
+      const ex=[];
+      if(lower.includes('clinique'))ex.push({text:'clinique',cat:'hosp'});
+      if(/chsf|chu|hôpital/.test(lower))ex.push({text:'hôpital',cat:'hosp'});
+      const dm=sent.match(/(\d+)\s*(mois|semaine)/); if(dm)ex.push({text:dm[0],cat:'hosp'});
+      tryAdd({startDate:s,endDate,type:'hospitalisation',score:null,conf:'high',matched:ex,triggers:cl.triggers,symptoms:cl.symptoms,context:sent.trim()});
+    } else if(cl.type){
+      tryAdd({startDate:s,endDate,type:cl.type,score:cl.score,conf:cl.conf,matched:cl.matched,triggers:cl.triggers,symptoms:cl.symptoms,context:sent.trim()});
+    }
+  }
+  episodes.sort((a,b)=>{const ya=a.startDate?.y||0,yb=b.startDate?.y||0;if(ya!==yb)return ya-yb;return(a.startDate?.mo||0)-(b.startDate?.mo||0);});
+  return episodes;
+}
+
+function renderEpTable(){
+  const tbody=document.getElementById('ep-tbody');
+  document.getElementById('ep-count').textContent=`${epData.length} épisode${epData.length!==1?'s':''} détecté${epData.length!==1?'s':''}`;
+  if(!epData.length){tbody.innerHTML=`<tr><td colspan="8"><div class="no-results"><div style="font-size:36px;margin-bottom:8px">🔍</div>Aucun épisode thymique détecté.</div></td></tr>`;return;}
+  tbody.innerHTML=epData.map((ep,i)=>{
+    const cc=ep.conf==='high'?'conf-high':ep.conf==='medium'?'conf-med':'conf-low';
+    const t=ep.type&&ep.type!=='hospitalisation'?EPISODE_TYPES.find(x=>x.id===ep.type):null;
+    const tl=ep.type==='hospitalisation'?'🏥 Hospitalisation':t?t.label:'❓ À vérifier';
+    const sv=ep.type==='hospitalisation'?'':ep.score??0;
+    const isH=ep.type==='hospitalisation';
+    const kw=[...(ep.matched||[]).map(k=>`<span class="kw">${k.text}</span>`),...(ep.triggers||[]).map(k=>`<span class="kw kw-trigger">${k}</span>`),...(ep.symptoms||[]).map(k=>`<span class="kw kw-symptom">${k}</span>`)].join('');
+    const ctx=(ep.context||'').replace(/\n/g,' ').substring(0,70)+((ep.context||'').length>70?'…':'');
+    return `<tr data-i="${i}">
+      <td><span class="conf-dot ${cc}"></span></td>
+      <td class="cell-date"><input type="text" value="${dateStr(ep.startDate)}" onchange="updEpField(${i},'start',this.value)" placeholder="MM/YYYY"></td>
+      <td class="cell-date"><input type="text" value="${dateStr(ep.endDate)}" onchange="updEpField(${i},'end',this.value)" placeholder="MM/YYYY"></td>
+      <td class="cell-type">
+        <select onchange="updEpType(${i},this.value)">
+          <option value="">❓ À vérifier</option>
+          <option value="manie" ${ep.type==='manie'?'selected':''}>Manie (+4/+5)</option>
+          <option value="hypomanie" ${ep.type==='hypomanie'?'selected':''}>Hypomanie (+3)</option>
+          <option value="excitation" ${ep.type==='excitation'?'selected':''}>Fluct. excitation (+2)</option>
+          <option value="instabilite" ${ep.type==='instabilite'?'selected':''}>Instabilité (0)</option>
+          <option value="fluct-dep" ${ep.type==='fluct-dep'?'selected':''}>Fluct. dépressive (-2)</option>
+          <option value="dep" ${ep.type==='dep'?'selected':''}>Épisode dépressif (-3)</option>
+          <option value="dep-severe" ${ep.type==='dep-severe'?'selected':''}>Épisode dép. sévère (-4/-5)</option>
+          <option value="hospitalisation" ${ep.type==='hospitalisation'?'selected':''}>🏥 Hospitalisation</option>
+        </select>
+      </td>
+      <td><div class="score-wrap">
+        <button onclick="adjEpScore(${i},-1)" ${isH?'disabled':''}>−</button>
+        <input type="number" min="-5" max="5" value="${sv}" ${isH?'disabled placeholder="—"':''} onchange="updEpField(${i},'score',+this.value)">
+        <button onclick="adjEpScore(${i},+1)" ${isH?'disabled':''}>+</button>
+      </div></td>
+      <td><div class="kw-list">${kw||'<span style="color:#aaa;font-size:.72rem">—</span>'}</div></td>
+      <td><span class="ctx-preview" onclick="showCtx(${i},'ep')" title="Voir contexte">${ctx||'—'}</span></td>
+      <td><button class="del-row" onclick="delEp(${i})">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+function updEpField(i,f,v){if(f==='start')epData[i].startDate=parseDispDate(v);else if(f==='end')epData[i].endDate=parseDispDate(v);else epData[i].score=v;}
+function updEpType(i,v){epData[i].type=v||null;const t=v?EPISODE_TYPES.find(x=>x.id===v):null;if(t)epData[i].score=t.score;if(v==='hospitalisation')epData[i].score=null;renderEpTable();}
+function adjEpScore(i,d){if(epData[i].type==='hospitalisation')return;epData[i].score=Math.max(-5,Math.min(5,(epData[i].score||0)+d));const r=document.querySelector(`tr[data-i="${i}"]`);if(r){const inp=r.querySelector('input[type=number]');if(inp)inp.value=epData[i].score;}}
+function delEp(i){epData.splice(i,1);renderEpTable();}
+function addEpRow(){epData.push({startDate:null,endDate:null,type:null,score:0,conf:'low',matched:[],triggers:[],symptoms:[],context:''});document.getElementById('ep-results-card').style.display='';renderEpTable();}
+function parseDispDate(str){if(!str)return null;let m;m=str.match(/^(\d{1,2})\/(\d{4})$/);if(m)return{d:null,mo:+m[1],y:+m[2],q:''};m=str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(m)return{d:+m[1],mo:+m[2],y:+m[3],q:''};m=str.match(/^(\d{4})$/);if(m)return{d:null,mo:null,y:+m[1],q:''};return parseFrDate(str);}
+
+function exportEpCSV(){
+  if(!epData.length){alert('Aucun épisode.');return;}
+  const h=['Date début','Date fin','Type','Niveau','Facteurs','Symptômes','Contexte'];
+  const rows=epData.map(ep=>{const t=ep.type&&ep.type!=='hospitalisation'?EPISODE_TYPES.find(x=>x.id===ep.type):null;return[dateStr(ep.startDate),dateStr(ep.endDate),ep.type==='hospitalisation'?'Hospitalisation':(t?.label||''),(ep.type==='hospitalisation'?'':ep.score??''),(ep.triggers||[]).join(', '),(ep.symptoms||[]).join(', '),(ep.context||'').replace(/\n/g,' ').replace(/"/g,'""').substring(0,200)];});
+  dlCSV([h,...rows],`episodes_${new Date().toISOString().slice(0,10)}.csv`);
+}
+function copyEpTSV(){
+  if(!epData.length){alert('Aucun épisode.');return;}
+  const h='Date début\tDate fin\tType\tNiveau\tFacteurs\tSymptômes';
+  const rows=epData.map(ep=>{const t=ep.type&&ep.type!=='hospitalisation'?EPISODE_TYPES.find(x=>x.id===ep.type):null;return[dateStr(ep.startDate),dateStr(ep.endDate),ep.type==='hospitalisation'?'Hospitalisation':(t?.label||'?'),(ep.type==='hospitalisation'?'':ep.score??''),(ep.triggers||[]).join(', '),(ep.symptoms||[]).join(', ')].join('\t');});
+  navigator.clipboard.writeText([h,...rows].join('\n')).then(()=>alert('Copié !')).catch(()=>alert('Utilisez CSV.'));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CHRONOLOGY PARSER (Tab 2)
+// ═══════════════════════════════════════════════════════════════════
+
+const CHR_CATS = [
+  { id:'incident',     label:'⚠️ Incident',         cls:'cat-incident',     optId:'chr-incident',
+    keywords:['tentative de suicide','passage à l\'acte suicidaire','imv','intoxication médicamenteuse volontaire','lettre d\'adieu','idéation suicidaire','idées suicidaires','urgences pour','passage aux urgences'] },
+  { id:'hosp',         label:'🏥 Hospitalisation',  cls:'cat-hosp',         optId:'chr-hosp',
+    keywords:['hospitalis','service de psychiatrie','chsf','chu','bicêtre','clinique de','unité psychiatrique'] },
+  { id:'traitement',   label:'💊 Traitement',        cls:'cat-traitement',   optId:'chr-traitement',
+    keywords:['traitement par','prescrit','prescription','introduction','switch','arrêt de','venlafaxine','dépakote','prozac','zoloft','sertraline','fluoxétine','paroxétine','mirtazapine','effexor','brintellix','vortioxétine','abilify','quétiapine','lamotrigine','téralithe','lithium','diazepam','zopiclone','valium','laroxyl','seresta','tercian','déroxat','deroxat','ixel','médicament','psychotrope'] },
+  { id:'substance',    label:'🚬 Substance',         cls:'cat-substance',    optId:'chr-substance',
+    keywords:['alcool','cannabis','tabac','cigarette','bière','consommation.*alcool','addiction','sevrage alcool','abstinence','csapa'] },
+  { id:'consultation', label:'👨‍⚕️ Consultation',    cls:'cat-consultation', optId:'chr-consultation',
+    keywords:['consulte','suivi par','dr ','psychiatre','psychologue','psychothérapie','cmp','bilan psychia','évaluation','séance','thérapeute','addictologue','médecin traitant'] },
+  { id:'vie',          label:'📅 Vie',               cls:'cat-vie',          optId:'chr-vie',
+    keywords:['divorce','séparation','mariage','naissance','grossesse','accouchement','décès','deuil','licenciement','arrêt de travail','emploi','concours','congé parental','déménage','retraite','rupture','cambriolage','harcèlement','hold-up','braquage','scolarité','étudiante','faculté'] },
+  { id:'symptome',     label:'🧠 Symptôme/Humeur',  cls:'cat-symptome',     optId:'chr-symptome',
+    keywords:['dépressif','dépression','anxieux','anxiété','fatigue','insomnie','hypersomnie','tristesse','humeur','thymique','excitation','maniaque','hypomanie','agitation','clinophilie','morosité','fluctuation','phobie','symptôme'] }
+];
+
+// Build a short meaningful label from a sentence
+function buildEventLabel(sent, cat) {
+  const lower = sent.toLowerCase();
+  // Remove leading date expressions
+  let s = sent.trim().replace(/^(?:(?:fin|début|mi-?)?\s*(?:janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s+\d{4}|en\s+\d{4}|\d{1,2}\/\d{4}|\d{4})[,\s:•\-]*/i, '');
+  s = s.replace(/^(?:la\s+patiente|le\s+patient|elle|il)\s+/i, '');
+  // Capitalize and trim to ~90 chars
+  s = s.trim();
+  if (s.length > 0) s = s.charAt(0).toUpperCase() + s.slice(1);
+  if (s.length > 90) s = s.substring(0, 87) + '…';
+  return s || sent.substring(0, 70);
+}
+
+function detectChrCat(text) {
+  const lower = text.toLowerCase();
+  for (const cat of CHR_CATS) {
+    if (!document.getElementById(cat.optId).checked) continue;
+    for (const kw of cat.keywords) {
+      try { if (lower.match(new RegExp(kw,'i'))) return cat; }
+      catch(e) { if (lower.includes(kw)) return cat; }
+    }
+  }
+  return null;
+}
+
+let chrData = []; // flat event list before grouping
+
+function parseChronology() {
+  const text = document.getElementById('input-text').value.trim();
+  if (!text) { alert('Veuillez coller du texte.'); return; }
+  const birthYear = parseInt(document.getElementById('birth-year').value) || null;
+  chrData = doParseChronology(text, birthYear);
+  document.getElementById('chr-results-card').style.display = '';
+  renderChrTable(birthYear);
+  document.getElementById('chr-results-card').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function doParseChronology(text, birthYear) {
+  const events = [], seenKeys = new Set();
+
+  // Split into sentences / bullet points
+  const units = text.split(/(?<=[.!?;])\s+(?=[A-ZÀ-Ü•\-o])|(?:^|\n)\s*[•·o\-]\s+/m)
+    .filter(s => s.trim().length > 15);
+
+  for (const sent of units) {
+    const lower = sent.toLowerCase();
+    const cat = detectChrCat(sent);
+    if (!cat) continue;
+
+    const dates = extractDates(sent);
+    if (!dates.length) continue;
+
+    // For each date found, create an event (first date = main date)
+    const d = dates[0];
+    const key = `${cat.id}-${d.y}-${d.mo||0}-${sent.substring(0,30)}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+
+    // End date if range mentioned
+    let endDate = null;
+    if (dates.length > 1) {
+      const last = dates[dates.length - 1];
+      if (last.y !== d.y || last.mo !== d.mo) endDate = last;
+    }
+
+    const label = buildEventLabel(sent, cat);
+
+    events.push({
+      date: d, endDate,
+      cat,
+      label,
+      context: sent.trim(),
+      age: birthYear ? d.y - birthYear : null
+    });
+  }
+
+  // Sort chronologically
+  events.sort((a, b) => {
+    const ya = a.date.y, yb = b.date.y;
+    if (ya !== yb) return ya - yb;
+    return (a.date.mo || 0) - (b.date.mo || 0);
+  });
+
+  return events;
+}
+
+function renderChrTable(birthYear) {
+  const tbody = document.getElementById('chr-tbody');
+  const groupMonths = parseInt(document.getElementById('group-months').value) || 3;
+  document.getElementById('chr-count').textContent = `${chrData.length} événement${chrData.length !== 1 ? 's' : ''}`;
+
+  if (!chrData.length) {
+    tbody.innerHTML = `<tr><td colspan="4"><div class="no-results"><div style="font-size:36px;margin-bottom:8px">📅</div>Aucun événement détecté.</div></td></tr>`;
+    return;
+  }
+
+  // Group events within groupMonths months of each other
+  const groups = [];
+  let currentGroup = null;
+  for (const ev of chrData) {
+    const evMo = dateToMonths(ev.date);
+    if (!currentGroup || evMo - currentGroup.anchorMo > groupMonths) {
+      currentGroup = { anchorMo: evMo, anchorDate: ev.date, events: [] };
+      groups.push(currentGroup);
+    }
+    currentGroup.events.push(ev);
+  }
+
+  // Render
+  let html = '';
+  for (const g of groups) {
+    const d = g.anchorDate;
+    const age = birthYear ? (d.y - birthYear) : null;
+    const lastD = g.events[g.events.length - 1].date;
+    let periodLabel = dateStr(d);
+    if (lastD && (lastD.y !== d.y || lastD.mo !== d.mo)) {
+      periodLabel += ' – ' + dateStr(lastD);
+    }
+    const ageTag = age !== null ? `<span class="period-age">${age} ans</span>` : '';
+
+    html += `<tr class="period-row">
+      <td colspan="4"><span class="period-date">${periodLabel}</span>${ageTag}</td>
+    </tr>`;
+
+    for (const ev of g.events) {
+      const ctx = ev.context.replace(/\n/g,' ').substring(0, 80) + (ev.context.length > 80 ? '…' : '');
+      html += `<tr class="ev-row">
+        <td style="white-space:nowrap;font-size:.8rem;color:var(--text-light)">${dateStr(ev.date)}${ev.endDate?' → '+dateStr(ev.endDate):''}</td>
+        <td><span class="ev-cat ${ev.cat.cls}">${ev.cat.label}</span></td>
+        <td><div class="ev-label">${ev.label}</div></td>
+        <td><div class="ev-source" onclick="showChrCtx('${escStr(ev.context)}')" title="Voir phrase source">${ctx}</div></td>
+      </tr>`;
+    }
+  }
+  tbody.innerHTML = html;
+}
+
+function escStr(s) { return s.replace(/'/g,"\\'").replace(/\n/g,' ').substring(0,300); }
+
+function showChrCtx(ctx) {
+  document.getElementById('modal-content').textContent = ctx;
+  document.getElementById('ctx-modal').classList.add('open');
+}
+
+function exportChrCSV() {
+  if (!chrData.length) { alert('Aucun événement.'); return; }
+  const h = ['Date','Date fin','Catégorie','Événement','Âge estimé','Contexte'];
+  const birthYear = parseInt(document.getElementById('birth-year').value) || null;
+  const rows = chrData.map(ev => [
+    dateStr(ev.date), dateStr(ev.endDate),
+    ev.cat.label.replace(/[⚠️🏥💊🚬👨‍⚕️📅🧠]\s*/g,''),
+    ev.label,
+    birthYear ? String(ev.date.y - birthYear) : '',
+    ev.context.replace(/\n/g,' ').replace(/"/g,'""').substring(0,200)
+  ]);
+  dlCSV([h,...rows], `chronologie_${new Date().toISOString().slice(0,10)}.csv`);
+}
+
+function copyChrTSV() {
+  if (!chrData.length) { alert('Aucun événement.'); return; }
+  const birthYear = parseInt(document.getElementById('birth-year').value) || null;
+  const h = 'Date\tDate fin\tCatégorie\tÉvénement\tÂge';
+  const rows = chrData.map(ev => [
+    dateStr(ev.date), dateStr(ev.endDate),
+    ev.cat.label.replace(/[⚠️🏥💊🚬👨‍⚕️📅🧠]\s*/g,''),
+    ev.label,
+    birthYear ? String(ev.date.y - birthYear) : ''
+  ].join('\t'));
+  navigator.clipboard.writeText([h,...rows].join('\n')).then(()=>alert('Copié !')).catch(()=>alert('Utilisez CSV.'));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SHARED UTILS
+// ═══════════════════════════════════════════════════════════════════
+
+function dlCSV(rows, filename) {
+  const csv = rows.map(r => r.map(c => `"${String(c)}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+}
+
+function showCtx(i, tab) {
+  const ctx = (tab === 'ep' ? epData : chrData)[i]?.context || '(pas de contexte)';
+  document.getElementById('modal-content').textContent = ctx;
+  document.getElementById('ctx-modal').classList.add('open');
+}
+function closeModal() { document.getElementById('ctx-modal').classList.remove('open'); }
+document.getElementById('ctx-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+function clearAll() {
+  document.getElementById('input-text').value = '';
+  epData = []; chrData = [];
+  document.getElementById('ep-results-card').style.display = 'none';
+  document.getElementById('chr-results-card').style.display = 'none';
+  document.getElementById('char-count').textContent = '0 car.';
+}
+
+function onBirthYearChange() {
+  if (chrData.length) {
+    const by = parseInt(document.getElementById('birth-year').value) || null;
+    renderChrTable(by);
+  }
+}
+
+function loadExample() {
+  document.getElementById('birth-year').value = '1978';
+  document.getElementById('input-text').value = `La patiente est née en 1978. Elle est l'aînée d'une fratrie de deux enfants.
+
+A l'âge de 20 ans, en 1998, elle décide de quitter le domicile familial et intègre une résidence universitaire. Elle se souvient d'une première fluctuation dépressive de l'humeur à cette période avec hypersomnie, fatigue et perte de motivation. Elle consulte le généraliste du BAPU.
+
+En 2000, retour au domicile familial. Elle se souvient là encore de symptômes de la lignée dépressive. Consulte un psychiatre au CMP qui lui prescrit le Déroxat jusqu'à 40 mg/j.
+
+En 2001, suivie pour un trouble dépressif saisonnier. Luminothérapie avec efficacité initiale. État thymique fluctuant avec des périodes où elle fonctionne moins bien.
+
+En 2004 (26 ans), le compagnon exprime son désir de séparation. État dépressif sévère. La mère s'occupe d'elle « comme un bébé », incapacité à réaliser les gestes de la vie quotidienne.
+
+En 2006, elle arrête progressivement le Déroxat et le suivi psychiatrique. Elle passe un concours de la fonction publique.
+
+En 2007, grossesse. Symptômes anxieux en post-partum précoce associés à des insomnies, fluctuation dépressive de l'humeur. Déménagement à Bordeaux.
+
+Entre 2015 et 2016 : divorce à la demande du mari, début consommation d'alcool quotidienne à 1,5 l de bière par jour.
+
+En 2021, sevrage alcool. Hospitalisation à la clinique de Villebouzin pendant un mois (15/11 au 15/12/2021). Introduction du Brintellix en fin de séjour. Début suivi CSAPA.
+
+La patiente se souvient rétrospectivement d'une amélioration spectaculaire de son état thymique, fin janvier 2025. Elle rapporte une réduction du besoin de sommeil sans fatigue durant au moins un mois, elle se souvient qu'elle était « gaie et heureuse ».
+
+Elle décrit une nouvelle fluctuation dépressive de l'humeur entre avril 2025 et juin 2025.
+
+En juillet 2025, réduction de son temps de sommeil, sans fatigue, humeur enjouée, idées qui vont plus vite que d'habitude. Fluctuation d'excitation.
+
+A compter de la mi-août 2025, résurgence progressive des symptômes dépressifs avec morosité, manque d'envie, clinophilie.`;
+  document.getElementById('char-count').textContent = document.getElementById('input-text').value.length + ' car.';
+  runActiveTab();
+}
+
+document.getElementById('input-text').addEventListener('input', function() {
+  document.getElementById('char-count').textContent = this.value.length + ' car.';
+});
+document.addEventListener('keydown', e => { if ((e.ctrlKey||e.metaKey) && e.key==='Enter') runActiveTab(); });
+</script>
+</body>
+</html>

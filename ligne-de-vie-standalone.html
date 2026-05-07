@@ -1,0 +1,1767 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ligne de Vie Thymique — Offline</title>
+
+<!-- Chart.js ecosystem -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<!-- Excel / PDF -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+/* Header */
+.header{background:#fff;border-bottom:1px solid #e2e8f0;padding:12px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.header-bar{width:3px;height:28px;background:linear-gradient(to bottom,#3b82f6,#10b981);border-radius:2px}
+.header h1{font-size:1.1rem;font-weight:700;color:#1e293b}
+.header p{font-size:.75rem;color:#64748b;margin-top:1px}
+.header-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+/* Tabs */
+.tabs{display:flex;gap:0;background:#fff;border-bottom:1px solid #e2e8f0;padding:0 24px;overflow-x:auto}
+.tab-btn{padding:10px 16px;font-size:.85rem;font-weight:500;color:#64748b;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s}
+.tab-btn:hover{color:#1e293b}
+.tab-btn.active{color:#3b82f6;border-bottom-color:#3b82f6}
+/* Tab panels */
+.tab-panel{display:none;padding:20px 24px}
+.tab-panel.active{display:block}
+/* Card */
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:16px}
+.card-title{font-size:.95rem;font-weight:600;color:#1e293b;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+/* Chart */
+#chartWrapper{background:#fff;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;padding:16px 24px}
+#chartControls{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+#chartTitle{font-size:1rem;font-weight:600;color:#1e293b;display:flex;align-items:center;gap:8px}
+.ctrl-btns{display:flex;gap:6px;flex-wrap:wrap}
+.ctrl-btn{padding:5px 11px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;font-size:.78rem;cursor:pointer;transition:all .15s}
+.ctrl-btn:hover{background:#f1f5f9}
+.ctrl-btn.on-med{background:#dcfce7;border-color:#86efac;color:#15803d}
+.ctrl-btn.on-sub{background:#f3e8ff;border-color:#d8b4fe;color:#7c3aed}
+.ctrl-btn.on-hosp{background:#fee2e2;border-color:#fca5a5;color:#dc2626}
+#chartLegend{display:flex;flex-wrap:wrap;gap:12px;font-size:.75rem;color:#475569;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #f1f5f9}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-dot{width:10px;height:10px;border-radius:50%}
+.legend-rect{width:14px;height:10px;border-radius:2px}
+#chartCanvas{width:100% !important;height:480px !important}
+/* Empty chart state */
+.chart-empty{height:300px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:#94a3b8}
+.chart-empty svg{width:48px;height:48px;opacity:.4}
+/* Timeline bar */
+.timeline-section{margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9}
+.timeline-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:.82rem;font-weight:600;color:#475569}
+.timeline-bar-row{margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.timeline-label{font-size:.72rem;color:#64748b;width:110px;flex-shrink:0;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.timeline-track{flex:1;height:14px;background:#f1f5f9;border-radius:4px;position:relative;overflow:hidden}
+.timeline-fill{position:absolute;top:0;height:100%;border-radius:4px;display:flex;align-items:center;padding:0 5px;font-size:.65rem;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden}
+/* Forms */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr}}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:.8rem;font-weight:500;color:#475569;margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:.85rem;background:#fff;color:#1e293b;outline:none;transition:border .15s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.1)}
+.form-group textarea{resize:vertical;min-height:64px}
+.mood-slider-wrap{position:relative;padding:0 2px}
+.mood-slider-wrap input[type=range]{width:100%;height:6px;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,#1d4ed8,#3b82f6 30%,#10b981 48%,#10b981 52%,#f97316 70%,#b91c1c);border-radius:3px;cursor:pointer}
+.mood-slider-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid #3b82f6;box-shadow:0 1px 4px rgba(0,0,0,.2);cursor:pointer}
+.mood-display{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;margin-top:6px;font-size:.85rem}
+.mood-ticks{display:flex;justify-content:space-between;font-size:.65rem;color:#94a3b8;padding:0 1px;margin-top:3px}
+/* Buttons */
+.btn{padding:7px 16px;border-radius:8px;font-size:.83rem;font-weight:500;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s;white-space:nowrap}
+.btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}
+.btn-danger{background:#ef4444;color:#fff}.btn-danger:hover{background:#dc2626}
+.btn-outline{background:#fff;color:#475569;border:1px solid #e2e8f0}.btn-outline:hover{background:#f8fafc}
+.btn-success{background:#10b981;color:#fff}.btn-success:hover{background:#059669}
+.btn-sm{padding:4px 10px;font-size:.75rem}
+/* Data table */
+.data-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.data-table th{background:#f8fafc;padding:8px 10px;text-align:left;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0}
+.data-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:#fafafa}
+/* Mood badge */
+.mood-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:.73rem;font-weight:600}
+/* Section accordion */
+.section{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px;overflow:hidden}
+.section-header{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;cursor:pointer;user-select:none}
+.section-header:hover{background:#f8fafc}
+.section-title{font-size:.88rem;font-weight:600;color:#1e293b;display:flex;align-items:center;gap:8px}
+.section-body{padding:0 18px 16px;display:none}
+.section-body.open{display:block}
+.section-count{background:#f1f5f9;color:#64748b;border-radius:20px;padding:1px 7px;font-size:.7rem;font-weight:600}
+/* Export bar */
+#exportBar{background:#fff;border-top:1px solid #e2e8f0;padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;bottom:0;z-index:30}
+#exportBar span{font-size:.75rem;color:#94a3b8}
+/* Toast */
+#toast{position:fixed;bottom:80px;right:24px;background:#1e293b;color:#fff;padding:10px 18px;border-radius:10px;font-size:.82rem;z-index:999;opacity:0;transform:translateY(8px);transition:all .3s;pointer-events:none}
+#toast.show{opacity:1;transform:translateY(0)}
+/* Instability */
+.instability-badge{background:#f1f5f9;border:1px dashed #94a3b8;color:#64748b;border-radius:4px;padding:2px 8px;font-size:.72rem}
+/* Reset button color */
+.ctrl-btn.reset{background:#f8fafc}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-bar"></div>
+  <div>
+    <h1>Ligne de Vie Thymique</h1>
+    <p>Application hors-ligne — données stockées localement sur cet appareil</p>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-outline btn-sm" onclick="exportExcel()">⬇ Exporter Excel</button>
+    <label class="btn btn-outline btn-sm" style="cursor:pointer">
+      ⬆ Importer Excel
+      <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
+    </label>
+    <button class="btn btn-outline btn-sm" onclick="exportPDF()">📄 Exporter PDF</button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('graphique',this)">📈 Graphique</button>
+  <button class="tab-btn" onclick="showTab('episodes',this)">🗂 Épisodes</button>
+  <button class="tab-btn" onclick="showTab('medicaments',this)">💊 Médicaments</button>
+  <button class="tab-btn" onclick="showTab('substances',this)">🍷 Substances</button>
+  <button class="tab-btn" onclick="showTab('hospitalisations',this)">🏥 Hospitalisations</button>
+  <button class="tab-btn" onclick="showTab('evenements',this)">📌 Événements de vie</button>
+</div>
+
+<!-- ══════════════ TAB: GRAPHIQUE ══════════════ -->
+<div id="tab-graphique" class="tab-panel active">
+
+  <!-- Chart wrapper -->
+  <div id="chartWrapper">
+    <div id="chartControls">
+      <div id="chartTitle">
+        <div style="width:3px;height:20px;background:#3b82f6;border-radius:2px"></div>
+        Ligne de Vie Thymique
+      </div>
+      <div class="ctrl-btns">
+        <span style="font-size:.75rem;color:#94a3b8;align-self:center">🔍 Molette: zoom · Glisser: déplacer</span>
+        <button class="ctrl-btn" id="btnMed" onclick="toggleOverlay('med')">💊 OFF</button>
+        <button class="ctrl-btn" id="btnSub" onclick="toggleOverlay('sub')">🍷 OFF</button>
+        <button class="ctrl-btn" id="btnHosp" onclick="toggleOverlay('hosp')">🏥 ON</button>
+        <button class="ctrl-btn reset" onclick="resetZoom()">Reset zoom</button>
+      </div>
+    </div>
+    <div id="chartLegend">
+      <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div>Excitation (+3 à +5)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Dépression (-3 à -5)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#6b7280"></div>Euthymie (0)</div>
+      <div class="legend-item"><div class="legend-rect" style="background:rgba(234,179,8,.3);border:1px solid #fbbf24"></div>Fluctuations (±1 à ±2)</div>
+      <div class="legend-item"><div class="legend-rect" style="background:rgba(148,163,184,.5);border:1px solid #94a3b8"></div>Instabilité thymique</div>
+      <div class="legend-item"><div class="legend-rect" style="background:rgba(124,58,237,.45);border:1px solid #7c3aed"></div>Épisode mixte ☯</div>
+    </div>
+    <div style="position:relative;height:480px;width:100%">
+      <canvas id="moodChart"></canvas>
+      <div id="chartEmpty" class="chart-empty" style="display:none">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <p>Aucun épisode enregistré.<br>Ajoutez votre premier épisode dans l'onglet <strong>Épisodes</strong>.</p>
+      </div>
+    </div>
+    <!-- Medications timeline -->
+    <div id="medTimeline" class="timeline-section" style="display:none">
+      <div class="timeline-header">
+        <span style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:8px;height:20px;background:#10b981;border-radius:2px"></span>Traitements Médicamenteux</span>
+      </div>
+      <div id="medTimelineBars"></div>
+    </div>
+    <!-- Substances timeline -->
+    <div id="subTimeline" class="timeline-section" style="display:none">
+      <div class="timeline-header">
+        <span style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:8px;height:20px;background:#a855f7;border-radius:2px"></span>Substances</span>
+      </div>
+      <div id="subTimelineBars"></div>
+    </div>
+  </div>
+
+  <!-- Quick-add sections (collapsed by default) -->
+  <div style="padding:16px 0">
+
+    <!-- Episodes accordion -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">📝 Ajouter un épisode thymique <span id="cnt-ep" class="section-count">0</span></span>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="section-body">
+        <div id="graphEpisodeForm"></div>
+      </div>
+    </div>
+
+    <!-- Instability accordion -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">〰 Période d'instabilité <span id="cnt-inst" class="section-count">0</span></span>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="section-body">
+        <div id="graphInstabilityForm"></div>
+      </div>
+    </div>
+
+    <!-- Hospitalizations accordion -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">🏥 Hospitalisation <span id="cnt-hosp" class="section-count">0</span></span>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="section-body">
+        <div id="graphHospForm"></div>
+      </div>
+    </div>
+
+    <!-- Life Events accordion -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">📌 Événement de vie <span id="cnt-le" class="section-count">0</span></span>
+        <span class="toggle-icon">▼</span>
+      </div>
+      <div class="section-body">
+        <div id="graphLifeEventForm"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════ TAB: ÉPISODES ══════════════ -->
+<div id="tab-episodes" class="tab-panel">
+  <div class="card">
+    <div class="card-title">📝 Ajouter un épisode</div>
+    <div id="episodeForm"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Liste des épisodes</div>
+    <div id="episodeList"></div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: MÉDICAMENTS ══════════════ -->
+<div id="tab-medicaments" class="tab-panel">
+  <div class="card">
+    <div class="card-title">💊 Ajouter un médicament</div>
+    <div id="medForm"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Liste des médicaments</div>
+    <div id="medList"></div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: SUBSTANCES ══════════════ -->
+<div id="tab-substances" class="tab-panel">
+  <div class="card">
+    <div class="card-title">🍷 Ajouter une substance</div>
+    <div id="subForm"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Liste des substances</div>
+    <div id="subList"></div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: HOSPITALISATIONS ══════════════ -->
+<div id="tab-hospitalisations" class="tab-panel">
+  <div class="card">
+    <div class="card-title">🏥 Ajouter une hospitalisation</div>
+    <div id="hospForm"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Liste des hospitalisations</div>
+    <div id="hospList"></div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: ÉVÉNEMENTS ══════════════ -->
+<div id="tab-evenements" class="tab-panel">
+  <div class="card">
+    <div class="card-title">📌 Ajouter un événement de vie</div>
+    <div id="lifeEventForm"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Liste des événements significatifs</div>
+    <div id="lifeEventList"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ══════════════ JAVASCRIPT ══════════════ -->
+<script>
+// ──────────────────────────────────────────────
+// 1. STORAGE
+// ──────────────────────────────────────────────
+const KEYS = {
+  episodes:        'lv_episodes',
+  instability:     'lv_instability',
+  medications:     'lv_medications',
+  substances:      'lv_substances',
+  hospitalizations:'lv_hospitalizations',
+  lifeEvents:      'lv_lifeEvents',
+};
+function load(key)       { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){ return []; } }
+function save(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
+function nextId(arr)     { return arr.length ? Math.max(...arr.map(x => x.id)) + 1 : 1; }
+
+let episodes         = load(KEYS.episodes);
+let instability      = load(KEYS.instability);
+let medications      = load(KEYS.medications);
+let substances       = load(KEYS.substances);
+let hospitalizations = load(KEYS.hospitalizations);
+let lifeEvents       = load(KEYS.lifeEvents);
+
+// ──────────────────────────────────────────────
+// 2. MOOD HELPERS
+// ──────────────────────────────────────────────
+const MOOD_LABELS = {
+  5:'Manie sévère',4:'Manie',3:'Hypomanie sévère',
+  2:'Fluctuation positive',1:'Fluctuation légère+',0:'Euthymie',
+  '-1':'Fluctuation légère−','-2':'Fluctuation négative',
+  '-3':'Dépression modérée','-4':'Dépression sévère','-5':'Dépression majeure'
+};
+const MOOD_EMOJIS  = {5:'🔥',4:'⚡',3:'🌤',2:'☀️',1:'😐',0:'⚖️','-1':'😔','-2':'😢','-3':'🌧','-4':'⛈','-5':'🌊'};
+
+function getMoodLabel(v) { return MOOD_LABELS[String(v)] || v; }
+function getMoodEmoji(v) { return MOOD_EMOJIS[String(v)] || ''; }
+function getMoodBg(v) {
+  if (v >= 3)  return '#fef3c7;border:1px solid #f97316;color:#c2410c';
+  if (v >= 1)  return '#fef9c3;border:1px solid #fbbf24;color:#854d0e';
+  if (v === 0) return '#f0fdf4;border:1px solid #86efac;color:#166534';
+  if (v >= -2) return '#eff6ff;border:1px solid #93c5fd;color:#1d4ed8';
+  return '#eff6ff;border:1px solid #3b82f6;color:#1e3a8a';
+}
+function getEpisodeType(v) {
+  if (v >= 4)  return 'Manie';
+  if (v === 3) return 'Hypomanie sévère';
+  if (v === 2) return 'Fluctuation Positive';
+  if (v === 1) return 'Fluctuation Positive';
+  if (v === 0) return 'Euthymie';
+  if (v === -1)return 'Fluctuation Negative';
+  if (v === -2)return 'Fluctuation Negative';
+  if (v === -3)return 'Depression Moderee';
+  return 'Depression Severe';
+}
+
+// ──────────────────────────────────────────────
+// 3. OVERLAYS STATE
+// ──────────────────────────────────────────────
+let showMed  = false;
+let showSub  = false;
+let showHosp = true;
+let chartInstance = null;
+let zoomMin = null, zoomMax = null;
+
+function toggleOverlay(which) {
+  if (which === 'med')  { showMed  = !showMed;  updateBtn('btnMed', showMed, 'on-med', '💊'); }
+  if (which === 'sub')  { showSub  = !showSub;  updateBtn('btnSub', showSub, 'on-sub', '🍷'); }
+  if (which === 'hosp') { showHosp = !showHosp; updateBtn('btnHosp',showHosp,'on-hosp','🏥'); }
+  rebuildChart();
+}
+function updateBtn(id, on, cls, icon) {
+  const b = document.getElementById(id);
+  b.className = 'ctrl-btn ' + (on ? cls : '');
+  b.textContent = icon + ' ' + (on ? 'ON' : 'OFF');
+}
+function resetZoom() {
+  if (chartInstance) { chartInstance.resetZoom(); zoomMin=null; zoomMax=null; renderTimelines(); }
+}
+
+// ──────────────────────────────────────────────
+// 4. CHART ALGORITHM (mirrors React app)
+// ──────────────────────────────────────────────
+function pseudoRandom(seed) {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function getEntryEnd(entry) {
+  if (entry.endDate) return new Date(entry.endDate);
+  const d = new Date(entry.startDate);
+  d.setMonth(d.getMonth() + 2); // 2 month default
+  return d;
+}
+
+function generateNoiseBars(startDate, endDate, periodId) {
+  const bars = [];
+  const dMs = endDate.getTime() - startDate.getTime();
+  const days = Math.max(1, dMs / 86400000);
+  for (let d = 0; d <= days; d++) {
+    const dt = new Date(startDate.getTime() + d * 86400000);
+    const seed = periodId * 10000 + d;
+    const h = 0.3 + pseudoRandom(seed) * 2.7;
+    const sign = pseudoRandom(seed + 500) > 0.45 ? 1 : -1;
+    bars.push({ x: dt.toISOString().split('T')[0], y: sign * h });
+  }
+  return bars;
+}
+
+function generateZigzagData(startDate, endDate) {
+  const markers = [];
+  const days = Math.max(2, (endDate - startDate) / 86400000);
+  for (let d = 0; d <= days; d += 5) {
+    const dt = new Date(startDate.getTime() + d * 86400000);
+    markers.push({ date: dt.toISOString().split('T')[0], value: 0, color: '#9ca3af', isEuthymia: false, isInstability: true });
+  }
+  return markers;
+}
+
+function generateMixedCurve(startDate, endDate, excLvl, depLvl) {
+  const pts = [];
+  const dMs = endDate - startDate;
+  const days = Math.max(2, dMs / 86400000);
+  const step = Math.max(1, Math.ceil(days / 60));
+  for (let d = 0; d <= days; d += step) {
+    const t = d / days;
+    const bell = Math.sin(t * Math.PI);
+    const dt = new Date(startDate.getTime() + d * 86400000);
+    pts.push({ date: dt.toISOString().split('T')[0], value: bell * excLvl, mixedUpperValue: bell * excLvl, mixedLowerValue: -bell * depLvl, color: '#7c3aed', isEuthymia: false, isInstability: false, isMixed: true });
+  }
+  return pts;
+}
+
+function buildTimelineData(sortedEntries) {
+  const timelineData = [];
+  if (sortedEntries.length === 0) return timelineData;
+
+  const firstDate = new Date(sortedEntries[0].startDate);
+  const lastEntry = sortedEntries[sortedEntries.length - 1];
+  const lastDate  = getEntryEnd(lastEntry);
+
+  // start buffer
+  const startBuf = new Date(firstDate);
+  startBuf.setDate(startBuf.getDate() - 7);
+  timelineData.push({ date: startBuf.toISOString().split('T')[0], value: 0, color: '#6b7280', isEuthymia: true });
+
+  for (let i = 0; i < sortedEntries.length; i++) {
+    const entry = sortedEntries[i];
+    const entryStart = new Date(entry.startDate);
+    const entryEnd   = getEntryEnd(entry);
+
+    // Fill gap with euthymia
+    if (i > 0) {
+      const prevEnd = getEntryEnd(sortedEntries[i - 1]);
+      if (entryStart - prevEnd > 86400000) {
+        const gs = new Date(prevEnd); gs.setDate(gs.getDate() + 1);
+        const ge = new Date(entryStart); ge.setDate(ge.getDate() - 1);
+        timelineData.push({ date: gs.toISOString().split('T')[0], value: 0, color: '#6b7280', isEuthymia: true });
+        timelineData.push({ date: ge.toISOString().split('T')[0], value: 0, color: '#6b7280', isEuthymia: true });
+      }
+    }
+
+    // Mixed episode
+    if (entry.episodeType === 'Mixte') {
+      const excLvl = entry.mixedExcitationLevel ?? 3;
+      const depLvl = entry.mixedDepressiveLevel ?? 3;
+      timelineData.push(...generateMixedCurve(entryStart, entryEnd, excLvl, depLvl));
+      continue;
+    }
+
+    // Episode curve
+    const peak = entry.moodLevel;
+    let color = '#6b7280';
+    if (peak > 0) color = Math.abs(peak) >= 3 ? '#ea580c' : '#fef3c7';
+    else if (peak < 0) color = Math.abs(peak) >= 3 ? '#2563eb' : '#fef3c7';
+
+    const durationDays = Math.max(1, (entryEnd - entryStart) / 86400000);
+    if (durationDays <= 1) {
+      timelineData.push({ date: entry.startDate, value: peak, color, isEuthymia: false, episodeId: i });
+    } else {
+      const total = Math.max(1, Math.floor(durationDays));
+      const rise  = Math.ceil(total * 0.3);
+      const peakP = Math.max(1, Math.ceil(total * 0.2));
+      const desc  = total - rise - peakP;
+      let cur = 0;
+      for (let d = 0; d <= rise; d++) {
+        const p = d / rise;
+        const dt = new Date(entryStart.getTime() + d * 86400000);
+        timelineData.push({ date: dt.toISOString().split('T')[0], value: peak * (p * p), color, isEuthymia: false, episodeId: i });
+        cur = d + 1;
+      }
+      for (let d = 0; d < peakP; d++) {
+        const dt = new Date(entryStart.getTime() + (cur + d) * 86400000);
+        const v = peak * (1 + Math.sin(d * 0.5) * 0.1);
+        timelineData.push({ date: dt.toISOString().split('T')[0], value: v, color, isEuthymia: false, episodeId: i });
+      }
+      cur += peakP;
+      for (let d = 0; d <= desc; d++) {
+        const p = d / Math.max(1, desc);
+        const dt = new Date(entryStart.getTime() + (cur + d) * 86400000);
+        timelineData.push({ date: dt.toISOString().split('T')[0], value: peak * Math.pow(1 - p, 1.5), color, isEuthymia: false, episodeId: i });
+      }
+    }
+  }
+
+  // end buffer (extend to today)
+  const endBuf = new Date(lastDate);
+  const today  = new Date();
+  const finalEnd = endBuf < today ? today : endBuf;
+  finalEnd.setDate(finalEnd.getDate() + 7);
+  timelineData.push({ date: finalEnd.toISOString().split('T')[0], value: 0, color: '#6b7280', isEuthymia: true });
+
+  // Instability zigzag markers
+  for (const period of instability) {
+    const s = new Date(period.startDate);
+    const e = period.endDate ? new Date(period.endDate) : new Date();
+    timelineData.push(...generateZigzagData(s, e));
+  }
+
+  // Sort by date
+  timelineData.sort((a, b) => new Date(a.date) - new Date(b.date));
+  return timelineData;
+}
+
+function buildDatasets(timelineData, sortedEntries) {
+  const vals = timelineData.map(p => p.value);
+
+  const orangeData = vals.map((v, i) => {
+    const pt = timelineData[i];
+    if (pt && pt.episodeId !== undefined) {
+      const e = sortedEntries[pt.episodeId];
+      if (e && e.moodLevel >= 3) return v;
+    }
+    return null;
+  });
+  const blueData = vals.map((v, i) => {
+    const pt = timelineData[i];
+    if (pt && pt.episodeId !== undefined) {
+      const e = sortedEntries[pt.episodeId];
+      if (e && e.moodLevel <= -3) return v;
+    }
+    return null;
+  });
+  const yellowData = vals.map((v, i) => {
+    const pt = timelineData[i];
+    if (pt && pt.episodeId !== undefined) {
+      const e = sortedEntries[pt.episodeId];
+      if (e && Math.abs(e.moodLevel) <= 2) return v;
+    }
+    return null;
+  });
+
+  const instBarData = [];
+  for (const period of instability) {
+    const s = new Date(period.startDate);
+    const e = period.endDate ? new Date(period.endDate) : new Date();
+    instBarData.push(...generateNoiseBars(s, e, period.id));
+  }
+
+  const mixedUpper = vals.map((_, i) => {
+    const pt = timelineData[i];
+    return (pt && pt.isMixed) ? pt.mixedUpperValue : null;
+  });
+  const mixedLower = vals.map((_, i) => {
+    const pt = timelineData[i];
+    return (pt && pt.isMixed) ? pt.mixedLowerValue : null;
+  });
+
+  const labels = timelineData.map(p => p.date);
+
+  return { labels, orangeData, blueData, yellowData, instBarData, mixedUpper, mixedLower, mainData: vals };
+}
+
+function buildAnnotations(sortedEntries, timelineData) {
+  const annotations = {};
+
+  // Trigger labels
+  sortedEntries.forEach((entry, i) => {
+    if (!entry.triggerEvents || !entry.triggerEvents.trim()) return;
+    const keywords = entry.triggerEvents.split(/[,;.\n]/).map(s=>s.trim()).filter(Boolean).slice(0,2).map(s=>s.split(' ').slice(0,3).join(' ')).join(' • ');
+    const isPos = entry.moodLevel > 0;
+    let yPos = isPos ? Math.min(entry.moodLevel + 1.2, 4.5) : Math.max(entry.moodLevel - 1.2, -4.5);
+    if (entry.moodLevel >= 4)  yPos = entry.moodLevel - 1.5;
+    if (entry.moodLevel <= -4) yPos = entry.moodLevel + 1.5;
+    const sd = entry.startDate;
+    annotations['tl_' + i] = { type:'line', xMin:sd, xMax:sd, yMin:entry.moodLevel, yMax:0, borderColor:'rgba(107,114,128,.7)', borderWidth:1, borderDash:[3,3] };
+    annotations['tl2_' + i] = { type:'line', xMin:sd, xMax:sd, yMin:0, yMax:yPos, borderColor:'rgba(107,114,128,.7)', borderWidth:1, borderDash:[3,3] };
+    annotations['tp_' + i] = { type:'point', xValue:sd, yValue:yPos, backgroundColor:'rgba(107,114,128,.8)', borderColor:'rgba(107,114,128,.8)', borderWidth:1, radius:3 };
+    annotations['tl_lbl_' + i] = { type:'label', xValue:sd, yValue:yPos, content:keywords, backgroundColor:'rgba(0,0,0,.85)', color:'white', font:{size:10,weight:'bold'}, padding:6, borderRadius:6, position:'center', yAdjust:(yPos > entry.moodLevel)?-15:15 };
+  });
+
+  // Mixed labels
+  sortedEntries.forEach((entry, i) => {
+    if (entry.episodeType !== 'Mixte') return;
+    const excLvl = entry.mixedExcitationLevel ?? 3;
+    annotations['ml_' + i] = { type:'label', xValue:entry.startDate, yValue:excLvl + 0.4, content:['☯ Mixte'], backgroundColor:'rgba(124,58,237,.85)', color:'white', font:{size:9,weight:'bold'}, padding:{x:5,y:2}, borderRadius:4, xAdjust:22 };
+  });
+
+  // Life events
+  lifeEvents.forEach((ev, i) => {
+    const evDate = ev.date.length === 7 ? ev.date + '-01' : ev.date;
+    const short  = ev.title.split(' ').slice(0,4).join(' ');
+    annotations['ll_' + i] = { type:'line', xMin:evDate, xMax:evDate, yMin:-5, yMax:5, borderColor:'rgba(107,114,128,.4)', borderWidth:1, borderDash:[4,4] };
+    annotations['llb_' + i] = { type:'label', xValue:evDate, yValue:-4.6, content:[short], backgroundColor:'rgba(255,255,255,.95)', color:'#374151', font:{size:9,weight:'normal'}, padding:{x:5,y:3}, borderRadius:4, borderColor:'rgba(156,163,175,.7)', borderWidth:1 };
+  });
+
+  // Hospitalizations
+  if (showHosp) {
+    const hospColors = { bg:'rgba(239,68,68,.4)', border:'rgb(220,38,38)', label:'rgba(220,38,38,.9)' };
+    hospitalizations.forEach(h => {
+      const sd = h.startDate.length === 7 ? h.startDate + '-01' : h.startDate;
+      const ed = h.endDate ? (h.endDate.length === 7 ? h.endDate + '-01' : h.endDate) : sd;
+      const mid = new Date(sd).getTime() + (new Date(ed).getTime() - new Date(sd).getTime()) / 2;
+      annotations['hb_' + h.id] = { type:'box', xMin:sd, xMax:ed, yMin:4.2, yMax:5, backgroundColor:hospColors.bg, borderColor:hospColors.border, borderWidth:2, borderRadius:3 };
+      annotations['hi_' + h.id] = { type:'label', xValue:mid, yValue:4.6, content:'🏥', font:{size:14}, backgroundColor:'transparent', position:'center' };
+    });
+  }
+
+  // Medication overlay
+  if (showMed) {
+    const medColors = [
+      {bg:'rgba(34,197,94,.3)',border:'rgb(34,197,94)',label:'rgba(22,163,74,.85)'},
+      {bg:'rgba(59,130,246,.3)',border:'rgb(59,130,246)',label:'rgba(37,99,235,.85)'},
+      {bg:'rgba(249,115,22,.3)',border:'rgb(249,115,22)',label:'rgba(234,88,12,.85)'},
+      {bg:'rgba(147,51,234,.3)',border:'rgb(147,51,234)',label:'rgba(126,34,206,.85)'},
+      {bg:'rgba(236,72,153,.3)',border:'rgb(236,72,153)',label:'rgba(219,39,119,.85)'},
+      {bg:'rgba(6,182,212,.3)',border:'rgb(6,182,212)',label:'rgba(8,145,178,.85)'},
+    ];
+    // Group by normalized name
+    const groups = {};
+    medications.forEach(m => {
+      const base = m.name.toLowerCase().replace(/\s*(\d+(\s)?(mg|mcg|g|ml|%))|(\d+|x|xr|lp|er)\b.*$/g,'').trim();
+      (groups[base] = groups[base] || []).push(m);
+    });
+    const keys = Object.keys(groups);
+    const step = keys.length > 1 ? Math.min(0.65, 4.2 / (keys.length - 1)) : 0;
+    const yStart = -4.8;
+    keys.forEach((base, gi) => {
+      const grp = groups[base];
+      const yPos = yStart + gi * step;
+      const half = Math.min(0.28, step * 0.4);
+      const c = medColors[gi % medColors.length];
+      grp.forEach(m => {
+        const sx = m.startDate;
+        const ex = m.endDate || new Date().toISOString().split('T')[0];
+        annotations['mo_' + m.id] = { type:'box', xMin:sx, xMax:ex, yMin:yPos-half, yMax:yPos+half, backgroundColor:c.bg, borderColor:c.border, borderWidth:2, borderRadius:4 };
+        if (m.dosage) {
+          const mid = new Date(sx).getTime() + (new Date(ex).getTime() - new Date(sx).getTime()) / 2;
+          annotations['md_' + m.id] = { type:'label', xValue:mid, yValue:yPos, content:m.dosage, backgroundColor:'rgba(0,0,0,.65)', color:'white', font:{size:10,weight:'bold'}, padding:{x:5,y:3}, borderRadius:3, position:'center' };
+        }
+      });
+      const earliest = grp.reduce((min,m) => m.startDate < min ? m.startDate : min, grp[0].startDate);
+      annotations['ml2_' + gi] = { type:'label', xValue:new Date(earliest).getTime(), yValue:yPos, content:base, backgroundColor:c.label, color:'white', font:{size:11,weight:'bold'}, padding:{x:7,y:4}, borderRadius:3, position:'start' };
+    });
+  }
+
+  // Substance overlay
+  if (showSub) {
+    const subColors = [
+      {bg:'rgba(147,51,234,.3)',border:'rgb(147,51,234)',label:'rgba(147,51,234,.8)'},
+      {bg:'rgba(236,72,153,.3)',border:'rgb(236,72,153)',label:'rgba(236,72,153,.8)'},
+      {bg:'rgba(99,102,241,.3)',border:'rgb(99,102,241)',label:'rgba(99,102,241,.8)'},
+      {bg:'rgba(59,130,246,.3)',border:'rgb(59,130,246)',label:'rgba(59,130,246,.8)'},
+      {bg:'rgba(6,182,212,.3)',border:'rgb(6,182,212)',label:'rgba(6,182,212,.8)'},
+      {bg:'rgba(16,185,129,.3)',border:'rgb(16,185,129)',label:'rgba(16,185,129,.8)'},
+    ];
+    substances.forEach((sub, i) => {
+      const sx = sub.startPeriod + '-01';
+      const ex = (sub.endPeriod ? sub.endPeriod + '-01' : new Date().toISOString().split('T')[0]);
+      const yPos = 4.5 - i * 0.6;
+      const c = subColors[i % subColors.length];
+      const mid = new Date(sx).getTime() + (new Date(ex).getTime() - new Date(sx).getTime()) / 2;
+      annotations['so_' + sub.id] = { type:'box', xMin:sx, xMax:ex, yMin:yPos-0.25, yMax:yPos+0.25, backgroundColor:c.bg, borderColor:c.border, borderWidth:3, borderRadius:6 };
+      annotations['sl_' + sub.id] = { type:'label', xValue:mid, yValue:yPos, content:`${sub.name} (${sub.frequency||''})`, backgroundColor:c.label, color:'white', font:{size:11,weight:'bold'}, padding:{x:8,y:4}, borderRadius:4, position:'center' };
+    });
+  }
+
+  return annotations;
+}
+
+// Custom plugin: draw episode dates on X axis
+const episodeDatePlugin = {
+  id:'episodeDates',
+  afterDraw(chart, args, opts) {
+    if (!opts.dates || opts.dates.length === 0) return;
+    const { ctx, scales, chartArea } = chart;
+    const xs = scales.x;
+    if (!xs) return;
+    const months = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+    const vMin = xs.min, vMax = xs.max;
+    const rangeMonths = (vMax - vMin) / (1000*60*60*24*30);
+    const visible = opts.dates.map(d=>({s:d,t:new Date(d).getTime()})).filter(d=>d.t>=vMin&&d.t<=vMax).sort((a,b)=>a.t-b.t);
+    if (!visible.length) return;
+    const shown = [];
+    visible.forEach(di => {
+      const px = xs.getPixelForValue(di.t);
+      if (!shown.length || px - shown[shown.length-1].px >= 60) shown.push({...di,px});
+    });
+    ctx.save();
+    ctx.font = 'bold 10px sans-serif';
+    ctx.fillStyle = '#374151';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    shown.forEach(di => {
+      const d = new Date(di.s);
+      const lbl = rangeMonths < 6 ? `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}` : `${months[d.getMonth()]} ${d.getFullYear()}`;
+      ctx.fillText(lbl, di.px, chartArea.bottom + 8);
+    });
+    ctx.restore();
+  }
+};
+
+Chart.register(episodeDatePlugin);
+
+function rebuildChart() {
+  const sorted = [...episodes].sort((a,b) => new Date(a.startDate) - new Date(b.startDate));
+
+  const chartEl = document.getElementById('moodChart');
+  const emptyEl = document.getElementById('chartEmpty');
+
+  if (sorted.length === 0) {
+    emptyEl.style.display = 'flex';
+    chartEl.style.display = 'none';
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    return;
+  }
+  emptyEl.style.display = 'none';
+  chartEl.style.display = 'block';
+
+  const timelineData = buildTimelineData(sorted);
+  const { labels, orangeData, blueData, yellowData, instBarData, mixedUpper, mixedLower, mainData } = buildDatasets(timelineData, sorted);
+
+  // Collect important dates
+  const importantDates = new Set();
+  episodes.forEach(e => { importantDates.add(e.startDate); if (e.endDate) importantDates.add(e.endDate); });
+  instability.forEach(p => { importantDates.add(p.startDate); if (p.endDate) importantDates.add(p.endDate); });
+
+  // X axis range
+  const xMin = (() => {
+    const ms = [...episodes.map(e=>new Date(e.startDate).getTime()), ...medications.map(m=>new Date(m.startDate).getTime())];
+    return ms.length ? Math.min(...ms) - 7*86400000 : Date.now() - 365*86400000;
+  })();
+  const xMax = (() => {
+    const ms = episodes.map(e => e.endDate ? new Date(e.endDate).getTime() : new Date(e.startDate).getTime());
+    return Math.max(ms.length ? Math.max(...ms) : Date.now(), Date.now()) + 30*86400000;
+  })();
+
+  const annotations = buildAnnotations(sorted, timelineData);
+
+  const datasets = [
+    // Orange (excitation ≥3)
+    { label:'Excitation', data:orangeData, borderColor:'#f97316', backgroundColor:'rgba(249,115,22,.3)', borderWidth:2, pointRadius:0, tension:0.4, fill:'origin', spanGaps:false },
+    // Blue (depression ≤-3)
+    { label:'Dépression', data:blueData, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.3)', borderWidth:2, pointRadius:0, tension:0.4, fill:'origin', spanGaps:false },
+    // Yellow (fluctuations ±1-2)
+    { label:'Fluctuations', data:yellowData, borderColor:'#fbbf24', backgroundColor:'rgba(254,243,199,.6)', borderWidth:2, pointRadius:0, tension:0.4, fill:'origin', spanGaps:false },
+    // Instability bars
+    { type:'bar', label:'Instabilité', data:instBarData, backgroundColor:'rgba(148,163,184,.80)', borderColor:'rgba(100,116,139,.85)', borderWidth:0.5, barThickness:1, borderRadius:0, order:10 },
+    // Mixed upper
+    { label:'Mixte ☯', data:mixedUpper, borderColor:'#7c3aed', backgroundColor:'rgba(124,58,237,.45)', borderWidth:2.5, pointRadius:0, tension:0.4, fill:'origin', spanGaps:false },
+    // Mixed lower
+    { label:'_mixedLower', data:mixedLower, borderColor:'#7c3aed', backgroundColor:'rgba(124,58,237,.45)', borderWidth:2.5, pointRadius:0, tension:0.4, fill:'origin', spanGaps:false },
+    // Reference line
+    { label:'Référence', data:mainData.map(()=>0), borderColor:'#9ca3af', borderWidth:1, pointRadius:0, borderDash:[5,5], fill:false, tension:0 },
+    // Main timeline
+    { label:'Ligne de vie', data:mainData.map((v,i)=>{const p=timelineData[i]; return (p&&(p.isInstability||p.isMixed))?null:v;}), borderColor:'#1f2937', backgroundColor:'transparent', borderWidth:3,
+      pointRadius:(ctx)=>{ const p=timelineData[ctx.dataIndex]; return p&&!p.isEuthymia&&!p.isInstability?5:0; },
+      pointBackgroundColor:(ctx)=>{ const p=timelineData[ctx.dataIndex]; return p?p.color:'#6b7280'; },
+      pointBorderColor:'#ffffff', pointBorderWidth:2, pointHoverRadius:8, tension:0.4, fill:false, spanGaps:false },
+  ];
+
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(chartEl, {
+    type:'line',
+    data:{ labels, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{
+        y:{ min:-5, max:5, grid:{ color:(ctx)=>ctx.tick.value===0?'#9CA3AF':'#F3F4F6' } },
+        x:{ type:'time', time:{unit:'month'}, min:xMin, max:xMax,
+            ticks:{ display:false }, grid:{ drawTicks:false },
+            title:{ display:true, text:'Période', font:{size:13,weight:'bold'}, padding:{top:25} } }
+      },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          mode:'index', intersect:false,
+          filter:(item)=>item.datasetIndex!==3,
+          callbacks:{
+            title(ctx){
+              if(!ctx.length||!ctx[0]) return '';
+              const pt = timelineData[ctx[0].dataIndex];
+              if(pt&&pt.isInstability) return "Période d'instabilité thymique";
+              return `Date : ${ctx[0].label??''}`;
+            },
+            label(ctx){
+              const pt = timelineData[ctx.dataIndex];
+              if(pt&&pt.isInstability) return '';
+              if(ctx.datasetIndex===7){
+                const v=ctx.parsed.y;
+                if(v===0) return 'État : Euthymie';
+                return v>0?`Excitation : +${v.toFixed(1)}`:`Dépression : ${v.toFixed(1)}`;
+              }
+              return '';
+            },
+            afterBody(ctx){
+              if(!ctx.length||!ctx[0]) return [];
+              const pt = timelineData[ctx[0].dataIndex];
+              if(!pt||pt.isInstability) return [];
+              if(pt.episodeId!==undefined){
+                const e=sorted[pt.episodeId];
+                return [
+                  `Type : ${e.episodeType}`,
+                  e.endDate?`Période : ${e.startDate} → ${e.endDate}`:`Début : ${e.startDate} (en cours)`,
+                  e.triggerEvents?`Déclencheurs : ${e.triggerEvents}`:'',
+                  e.notes?`Notes : ${e.notes}`:''
+                ].filter(Boolean);
+              }
+              if(pt.isEuthymia) return ["Période d'euthymie"];
+              return [];
+            }
+          }
+        },
+        annotation:{ annotations },
+        zoom:{
+          zoom:{ wheel:{enabled:true,speed:0.1}, pinch:{enabled:true}, mode:'x',
+            onZoomComplete(ctx){ const xs=ctx.chart.scales.x; zoomMin=xs.min; zoomMax=xs.max; renderTimelines(); } },
+          pan:{ enabled:true, mode:'x',
+            onPanComplete(ctx){ const xs=ctx.chart.scales.x; zoomMin=xs.min; zoomMax=xs.max; renderTimelines(); } }
+        },
+        episodeDates:{ dates: Array.from(importantDates) }
+      },
+      layout:{ padding:{ bottom:5 } }
+    }
+  });
+
+  renderTimelines();
+}
+
+// ──────────────────────────────────────────────
+// 5. TIMELINE BARS (medications / substances)
+// ──────────────────────────────────────────────
+const MED_COLORS  = ['#22c55e','#3b82f6','#f97316','#a855f7','#ec4899','#06b6d4','#eab308','#ef4444','#10b981','#6366f1'];
+const SUB_COLORS  = ['#a855f7','#ec4899','#6366f1','#3b82f6','#06b6d4','#10b981','#84cc16','#eab308','#f97316','#ef4444'];
+
+function calcBar(sTime, eTime, chartS, chartE) {
+  if (eTime <= chartS || sTime >= chartE) return {left:0,width:0};
+  const range = chartE - chartS;
+  const left  = Math.max(0, (sTime - chartS) / range * 100);
+  const width = Math.max(0, Math.min(100 - left, (eTime - sTime) / range * 100));
+  return { left, width };
+}
+
+function renderTimelines() {
+  const chartS = zoomMin ?? (chartInstance ? chartInstance.scales.x.min : null);
+  const chartE = zoomMax ?? (chartInstance ? chartInstance.scales.x.max : null);
+  if (!chartS || !chartE) return;
+
+  // Medications timeline
+  const medDiv = document.getElementById('medTimeline');
+  const medBars = document.getElementById('medTimelineBars');
+  if (medications.length > 0 && episodes.length > 0) {
+    medDiv.style.display = 'block';
+    // Group
+    const groups = {};
+    medications.forEach(m => {
+      const base = m.name.toLowerCase().replace(/\s*(\d+(\s)?(mg|mcg|g|ml|%))|(\d+|x|xr|lp|er)\b.*$/g,'').trim();
+      (groups[base] = groups[base] || []).push(m);
+    });
+    medBars.innerHTML = Object.entries(groups).map(([base, grp], gi) => {
+      const color = MED_COLORS[gi % MED_COLORS.length];
+      const bars = grp.map(m => {
+        const s = new Date(m.startDate).getTime();
+        const e = (m.endDate ? new Date(m.endDate) : new Date()).getTime();
+        const {left,width} = calcBar(s,e,chartS,chartE);
+        if (!width) return '';
+        return `<div class="timeline-fill" style="left:${left}%;width:${width}%;background:${color}">${m.dosage||''}</div>`;
+      }).join('');
+      return `<div class="timeline-bar-row"><div class="timeline-label" title="${base}">${base}</div><div class="timeline-track">${bars}</div></div>`;
+    }).join('');
+  } else {
+    medDiv.style.display = 'none';
+  }
+
+  // Substances timeline
+  const subDiv = document.getElementById('subTimeline');
+  const subBars = document.getElementById('subTimelineBars');
+  if (substances.length > 0 && episodes.length > 0) {
+    subDiv.style.display = 'block';
+    subBars.innerHTML = substances.map((sub, i) => {
+      const color = SUB_COLORS[i % SUB_COLORS.length];
+      const s = new Date(sub.startPeriod + '-01').getTime();
+      const e = (sub.endPeriod ? new Date(sub.endPeriod + '-01') : new Date()).getTime();
+      const {left,width} = calcBar(s,e,chartS,chartE);
+      if (!width) return '';
+      return `<div class="timeline-bar-row"><div class="timeline-label" title="${sub.name}">${sub.name}</div><div class="timeline-track"><div class="timeline-fill" style="left:${left}%;width:${width}%;background:${color}">${sub.frequency||''}</div></div></div>`;
+    }).join('');
+  } else {
+    subDiv.style.display = 'none';
+  }
+}
+
+// ──────────────────────────────────────────────
+// 6. EPISODE FORM
+// ──────────────────────────────────────────────
+function episodeFormHTML(formId, btnLabel) {
+  return `
+  <form id="${formId}" onsubmit="submitEpisode(event,'${formId}')">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Début <span style="color:#ef4444">*</span></label>
+        <input type="month" name="startDate" required>
+      </div>
+      <div class="form-group">
+        <label>Fin <span style="color:#94a3b8;font-size:.7rem">(optionnel)</span></label>
+        <input type="month" name="endDate">
+      </div>
+    </div>
+
+    <!-- Type toggle -->
+    <div class="form-group">
+      <label>Type d'épisode</label>
+      <div style="display:flex;gap:8px;margin-top:2px">
+        <button type="button" id="${formId}_typeStd"
+          onclick="setEpisodeType('${formId}','standard')"
+          style="flex:1;padding:8px;border-radius:8px;border:2px solid #3b82f6;background:#eff6ff;color:#1d4ed8;font-size:.82rem;font-weight:600;cursor:pointer">
+          Épisode standard
+        </button>
+        <button type="button" id="${formId}_typeMix"
+          onclick="setEpisodeType('${formId}','mixte')"
+          style="flex:1;padding:8px;border-radius:8px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-size:.82rem;font-weight:600;cursor:pointer">
+          ☯ Épisode mixte
+        </button>
+      </div>
+    </div>
+    <input type="hidden" name="episodeTypeMode" value="standard">
+
+    <!-- Standard mood section -->
+    <div id="${formId}_stdSection">
+      <div class="form-group">
+        <label>Humeur <span id="${formId}_lbl" style="font-weight:700"></span></label>
+        <div class="mood-slider-wrap">
+          <input type="range" name="moodLevel" min="-5" max="5" step="1" value="0" oninput="updateMoodDisplay('${formId}',this.value)">
+          <div class="mood-ticks"><span>−5</span><span>−4</span><span>−3</span><span>−2</span><span>−1</span><span>0</span><span>+1</span><span>+2</span><span>+3</span><span>+4</span><span>+5</span></div>
+        </div>
+        <div class="mood-display" id="${formId}_display">
+          <span id="${formId}_emoji" style="font-size:1.2rem">⚖️</span>
+          <span id="${formId}_txt" style="font-size:.85rem;color:#475569">Euthymie</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mixed episode section -->
+    <div id="${formId}_mixSection" style="display:none">
+      <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:14px;margin-bottom:12px">
+        <div style="color:#7c3aed;font-size:.82rem;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+          ☯ Les deux pôles coexistent simultanément
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label style="color:#c2410c">Pôle maniaque — intensité :
+            <span id="${formId}_excLbl" style="font-weight:800;font-size:1rem">+3</span>
+          </label>
+          <div class="mood-slider-wrap" style="margin-top:4px">
+            <input type="range" name="mixedExcitationLevel" min="1" max="5" step="1" value="3"
+              style="background:linear-gradient(to right,#fed7aa,#f97316,#b91c1c)"
+              oninput="updateMixedDisplay('${formId}','exc',this.value)">
+            <div class="mood-ticks" style="display:flex;justify-content:space-between">
+              <span>+1 léger</span><span>+2</span><span>+3</span><span>+4</span><span>+5 sévère</span>
+            </div>
+          </div>
+        </div>
+        <div style="border-top:1px solid #ddd6fe;margin:12px 0"></div>
+        <div class="form-group" style="margin-bottom:0">
+          <label style="color:#1d4ed8">Pôle dépressif — intensité :
+            <span id="${formId}_depLbl" style="font-weight:800;font-size:1rem">-3</span>
+          </label>
+          <div class="mood-slider-wrap" style="margin-top:4px">
+            <input type="range" name="mixedDepressiveLevel" min="1" max="5" step="1" value="3"
+              style="background:linear-gradient(to right,#bfdbfe,#3b82f6,#1e3a8a)"
+              oninput="updateMixedDisplay('${formId}','dep',this.value)">
+            <div class="mood-ticks" style="display:flex;justify-content:space-between">
+              <span>-1 léger</span><span>-2</span><span>-3</span><span>-4</span><span>-5 sévère</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Événement déclencheur <span style="color:#94a3b8;font-size:.7rem">(optionnel)</span></label>
+      <input type="text" name="triggerEvents" placeholder="Ex : stress, voyage, changement de traitement…">
+    </div>
+    <div class="form-group">
+      <label>Notes <span style="color:#94a3b8;font-size:.7rem">(optionnel)</span></label>
+      <textarea name="notes" placeholder="Observations libres…" rows="2"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="submit" class="btn btn-primary">${btnLabel}</button>
+      <button type="button" class="btn btn-outline" onclick="resetEpisodeForm('${formId}')">Annuler</button>
+    </div>
+    <p id="${formId}_err" style="color:#ef4444;font-size:.78rem;margin-top:6px;display:none"></p>
+  </form>`;
+}
+
+function setEpisodeType(formId, type) {
+  const stdSection  = document.getElementById(formId + '_stdSection');
+  const mixSection  = document.getElementById(formId + '_mixSection');
+  const stdBtn      = document.getElementById(formId + '_typeStd');
+  const mixBtn      = document.getElementById(formId + '_typeMix');
+  const modeInput   = document.querySelector('#' + formId + ' [name=episodeTypeMode]');
+  if (type === 'mixte') {
+    stdSection.style.display = 'none';
+    mixSection.style.display = 'block';
+    stdBtn.style.cssText = 'flex:1;padding:8px;border-radius:8px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-size:.82rem;font-weight:600;cursor:pointer';
+    mixBtn.style.cssText = 'flex:1;padding:8px;border-radius:8px;border:2px solid #7c3aed;background:#f5f3ff;color:#7c3aed;font-size:.82rem;font-weight:600;cursor:pointer';
+    modeInput.value = 'mixte';
+  } else {
+    stdSection.style.display = 'block';
+    mixSection.style.display = 'none';
+    stdBtn.style.cssText = 'flex:1;padding:8px;border-radius:8px;border:2px solid #3b82f6;background:#eff6ff;color:#1d4ed8;font-size:.82rem;font-weight:600;cursor:pointer';
+    mixBtn.style.cssText = 'flex:1;padding:8px;border-radius:8px;border:2px solid #e2e8f0;background:#fff;color:#64748b;font-size:.82rem;font-weight:600;cursor:pointer';
+    modeInput.value = 'standard';
+  }
+}
+
+function updateMixedDisplay(formId, pole, value) {
+  if (pole === 'exc') {
+    document.getElementById(formId + '_excLbl').textContent = '+' + value;
+  } else {
+    document.getElementById(formId + '_depLbl').textContent = '-' + value;
+  }
+}
+
+function resetEpisodeForm(formId) {
+  document.getElementById(formId).reset();
+  setEpisodeType(formId, 'standard');
+  updateMoodDisplay(formId, 0);
+  updateMixedDisplay(formId, 'exc', 3);
+  updateMixedDisplay(formId, 'dep', 3);
+}
+
+function updateMoodDisplay(formId, val) {
+  val = parseInt(val);
+  const lbl = getMoodLabel(val);
+  const emoji = getMoodEmoji(val);
+  const bg = getMoodBg(val);
+  document.getElementById(formId + '_lbl').textContent = (val > 0 ? '+' : '') + val;
+  document.getElementById(formId + '_emoji').textContent = emoji;
+  document.getElementById(formId + '_txt').textContent = lbl;
+  const disp = document.getElementById(formId + '_display');
+  disp.style.cssText = `display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;margin-top:6px;font-size:.85rem;background:${val>0?'#fff7ed':val<0?'#eff6ff':'#f0fdf4'}`;
+}
+
+function submitEpisode(e, formId) {
+  e.preventDefault();
+  const f = e.target;
+  const sd = f.startDate.value;
+  const ed = f.endDate.value;
+  const mode = f.episodeTypeMode.value;
+  const errEl = document.getElementById(formId + '_err');
+  if (!sd) { errEl.textContent = 'La date de début est requise.'; errEl.style.display='block'; return; }
+  if (ed && ed < sd) { errEl.textContent = 'La fin ne peut pas être avant le début.'; errEl.style.display='block'; return; }
+  errEl.style.display='none';
+  const id = nextId(episodes);
+  if (mode === 'mixte') {
+    const excLvl = parseInt(f.mixedExcitationLevel.value) || 3;
+    const depLvl = parseInt(f.mixedDepressiveLevel.value) || 3;
+    episodes.push({ id, startDate:sd+'-01', endDate:ed?ed+'-01':null, moodLevel:0, episodeType:'Mixte', mixedExcitationLevel:excLvl, mixedDepressiveLevel:depLvl, triggerEvents:f.triggerEvents.value.trim()||null, notes:f.notes.value.trim()||null });
+  } else {
+    const ml = parseInt(f.moodLevel.value);
+    episodes.push({ id, startDate:sd+'-01', endDate:ed?ed+'-01':null, moodLevel:ml, episodeType:getEpisodeType(ml), triggerEvents:f.triggerEvents.value.trim()||null, notes:f.notes.value.trim()||null });
+  }
+  save(KEYS.episodes, episodes);
+  resetEpisodeForm(formId);
+  toast('Épisode enregistré ✓');
+  refreshAll();
+}
+
+// ──────────────────────────────────────────────
+// 7. INSTABILITY FORM
+// ──────────────────────────────────────────────
+function instabilityFormHTML(formId) {
+  return `
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:.8rem;color:#64748b;margin-bottom:12px">
+    💡 Une période d'instabilité représente une phase de fluctuations thymiques sans épisode clairement identifié. Elle s'affiche comme un séismographe gris sur le graphique.
+  </div>
+  <form id="${formId}" onsubmit="submitInstability(event,'${formId}')">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Début <span style="color:#ef4444">*</span></label>
+        <input type="month" name="startDate" required>
+      </div>
+      <div class="form-group">
+        <label>Fin <span style="color:#94a3b8;font-size:.7rem">(optionnel)</span></label>
+        <input type="month" name="endDate">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea name="notes" rows="2" placeholder="Observations…"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-outline">Ajouter cette période</button>
+      <button type="reset" class="btn btn-outline">Annuler</button>
+    </div>
+    <p id="${formId}_err" style="color:#ef4444;font-size:.78rem;margin-top:6px;display:none"></p>
+  </form>`;
+}
+
+function submitInstability(e, formId) {
+  e.preventDefault();
+  const f = e.target;
+  const sd = f.startDate.value;
+  const ed = f.endDate.value;
+  const errEl = document.getElementById(formId + '_err');
+  if (!sd) { errEl.textContent = 'La date de début est requise.'; errEl.style.display='block'; return; }
+  if (ed && ed < sd) { errEl.textContent = 'La fin ne peut pas être avant le début.'; errEl.style.display='block'; return; }
+  errEl.style.display='none';
+  const id = nextId(instability);
+  instability.push({ id, startDate:sd+'-01', endDate:ed?ed+'-01':null, notes:f.notes.value.trim()||null });
+  save(KEYS.instability, instability);
+  f.reset(); toast("Période d'instabilité enregistrée ✓"); refreshAll();
+}
+
+// ──────────────────────────────────────────────
+// 8. HOSPITALIZATION FORM
+// ──────────────────────────────────────────────
+function hospFormHTML(formId) {
+  return `
+  <form id="${formId}" onsubmit="submitHosp(event,'${formId}')">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Début <span style="color:#ef4444">*</span></label>
+        <input type="month" name="startDate" required>
+      </div>
+      <div class="form-group">
+        <label>Fin <span style="color:#94a3b8;font-size:.7rem">(optionnel)</span></label>
+        <input type="month" name="endDate">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Lieu <span style="color:#94a3b8;font-size:.7rem">(optionnel)</span></label>
+      <input type="text" name="location" placeholder="Nom de l'établissement…">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea name="notes" rows="2"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-danger btn-sm" style="background:#dc2626">Enregistrer l'hospitalisation</button>
+      <button type="reset" class="btn btn-outline btn-sm">Annuler</button>
+    </div>
+  </form>`;
+}
+
+function submitHosp(e, formId) {
+  e.preventDefault();
+  const f = e.target;
+  const sd = f.startDate.value;
+  const ed = f.endDate.value;
+  if (!sd) return;
+  const id = nextId(hospitalizations);
+  hospitalizations.push({ id, startDate:sd+'-01', endDate:ed?ed+'-01':null, location:f.location.value.trim()||null, notes:f.notes.value.trim()||null });
+  save(KEYS.hospitalizations, hospitalizations);
+  f.reset(); toast('Hospitalisation enregistrée ✓'); refreshAll();
+}
+
+// ──────────────────────────────────────────────
+// 9. LIFE EVENT FORM
+// ──────────────────────────────────────────────
+function lifeEventFormHTML(formId) {
+  return `
+  <form id="${formId}" onsubmit="submitLifeEvent(event,'${formId}')">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Date <span style="color:#ef4444">*</span></label>
+        <input type="month" name="date" required>
+      </div>
+      <div class="form-group">
+        <label>Catégorie</label>
+        <select name="category">
+          <option value="autre">Autre</option>
+          <option value="familial">Familial</option>
+          <option value="professionnel">Professionnel</option>
+          <option value="médical">Médical</option>
+          <option value="relationnel">Relationnel</option>
+          <option value="traumatique">Traumatique</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Titre <span style="color:#ef4444">*</span></label>
+      <input type="text" name="title" required placeholder="Ex : Perte d'emploi, déménagement, naissance…">
+    </div>
+    <div class="form-group">
+      <label>Description <span style="color:#94a3b8;font-size:.7rem">(optionnel)</span></label>
+      <textarea name="description" rows="2" placeholder="Détails…"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-primary btn-sm">Enregistrer</button>
+      <button type="reset" class="btn btn-outline btn-sm">Annuler</button>
+    </div>
+  </form>`;
+}
+
+function submitLifeEvent(e, formId) {
+  e.preventDefault();
+  const f = e.target;
+  if (!f.date.value || !f.title.value.trim()) return;
+  const id = nextId(lifeEvents);
+  lifeEvents.push({ id, date:f.date.value, title:f.title.value.trim(), description:f.description.value.trim()||null, category:f.category.value });
+  save(KEYS.lifeEvents, lifeEvents);
+  f.reset(); toast('Événement enregistré ✓'); refreshAll();
+}
+
+// ──────────────────────────────────────────────
+// 10. MEDICATION FORM
+// ──────────────────────────────────────────────
+function medFormHTML(formId) {
+  return `
+  <form id="${formId}" onsubmit="submitMed(event,'${formId}')">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Nom <span style="color:#ef4444">*</span></label>
+        <input type="text" name="name" required placeholder="Ex : Lithium 400mg…">
+      </div>
+      <div class="form-group">
+        <label>Dosage</label>
+        <input type="text" name="dosage" placeholder="Ex : 400mg">
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Fréquence</label>
+        <select name="frequency">
+          <option value="">—</option>
+          <option value="daily">Quotidien</option>
+          <option value="twice_daily">2x/jour</option>
+          <option value="three_times_daily">3x/jour</option>
+          <option value="weekly">Hebdomadaire</option>
+          <option value="monthly">Mensuel</option>
+          <option value="as_needed">Si besoin</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Statut</label>
+        <select name="isActive">
+          <option value="1">Actif</option>
+          <option value="0">Arrêté</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Début <span style="color:#ef4444">*</span></label>
+        <input type="date" name="startDate" required>
+      </div>
+      <div class="form-group">
+        <label>Fin <span style="color:#94a3b8;font-size:.7rem">(optionnel)</span></label>
+        <input type="date" name="endDate">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea name="notes" rows="2"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-success btn-sm">Enregistrer</button>
+      <button type="reset" class="btn btn-outline btn-sm">Annuler</button>
+    </div>
+  </form>`;
+}
+
+function submitMed(e, formId) {
+  e.preventDefault();
+  const f = e.target;
+  if (!f.name.value.trim() || !f.startDate.value) return;
+  const id = nextId(medications);
+  medications.push({ id, name:f.name.value.trim(), dosage:f.dosage.value.trim()||null, frequency:f.frequency.value||null, startDate:f.startDate.value, endDate:f.endDate.value||null, isActive:f.isActive.value==='1', notes:f.notes.value.trim()||null });
+  save(KEYS.medications, medications);
+  f.reset(); toast('Médicament enregistré ✓'); refreshAll();
+}
+
+// ──────────────────────────────────────────────
+// 11. SUBSTANCE FORM
+// ──────────────────────────────────────────────
+function subFormHTML(formId) {
+  return `
+  <form id="${formId}" onsubmit="submitSub(event,'${formId}')">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Substance <span style="color:#ef4444">*</span></label>
+        <input type="text" name="name" required placeholder="Ex : Alcool, Cannabis, Tabac…">
+      </div>
+      <div class="form-group">
+        <label>Fréquence</label>
+        <select name="frequency">
+          <option value="">—</option>
+          <option value="daily">Quotidien</option>
+          <option value="several_weekly">Plusieurs fois/sem</option>
+          <option value="weekly">Hebdomadaire</option>
+          <option value="several_monthly">Plusieurs fois/mois</option>
+          <option value="monthly">Mensuel</option>
+          <option value="occasional">Ponctuel</option>
+          <option value="festive">Festif</option>
+          <option value="rare">Rare</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Quantité <span style="color:#94a3b8;font-size:.7rem">(optionnel)</span></label>
+      <input type="text" name="quantity" placeholder="Ex : 2 verres/jour…">
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Début (mois) <span style="color:#ef4444">*</span></label>
+        <input type="month" name="startPeriod" required>
+      </div>
+      <div class="form-group">
+        <label>Fin (mois) <span style="color:#94a3b8;font-size:.7rem">(optionnel)</span></label>
+        <input type="month" name="endPeriod">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea name="notes" rows="2"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn btn-primary btn-sm">Enregistrer</button>
+      <button type="reset" class="btn btn-outline btn-sm">Annuler</button>
+    </div>
+  </form>`;
+}
+
+function submitSub(e, formId) {
+  e.preventDefault();
+  const f = e.target;
+  if (!f.name.value.trim() || !f.startPeriod.value) return;
+  const id = nextId(substances);
+  substances.push({ id, name:f.name.value.trim(), frequency:f.frequency.value||null, quantity:f.quantity.value.trim()||null, startPeriod:f.startPeriod.value, endPeriod:f.endPeriod.value||null, isActive:!f.endPeriod.value, notes:f.notes.value.trim()||null });
+  save(KEYS.substances, substances);
+  f.reset(); toast('Substance enregistrée ✓'); refreshAll();
+}
+
+// ──────────────────────────────────────────────
+// 12. DELETE FUNCTIONS
+// ──────────────────────────────────────────────
+function delEpisode(id) { if(!confirm('Supprimer cet épisode ?')) return; episodes=episodes.filter(x=>x.id!==id); save(KEYS.episodes,episodes); refreshAll(); }
+function delInstability(id) { if(!confirm('Supprimer cette période ?')) return; instability=instability.filter(x=>x.id!==id); save(KEYS.instability,instability); refreshAll(); }
+function delHosp(id) { if(!confirm('Supprimer ?')) return; hospitalizations=hospitalizations.filter(x=>x.id!==id); save(KEYS.hospitalizations,hospitalizations); refreshAll(); }
+function delMed(id) { if(!confirm('Supprimer ?')) return; medications=medications.filter(x=>x.id!==id); save(KEYS.medications,medications); refreshAll(); }
+function delSub(id) { if(!confirm('Supprimer ?')) return; substances=substances.filter(x=>x.id!==id); save(KEYS.substances,substances); refreshAll(); }
+function delLifeEvent(id) { if(!confirm('Supprimer ?')) return; lifeEvents=lifeEvents.filter(x=>x.id!==id); save(KEYS.lifeEvents,lifeEvents); refreshAll(); }
+
+// ──────────────────────────────────────────────
+// 13. RENDER LISTS
+// ──────────────────────────────────────────────
+function moodBadgeHTML(ep) {
+  if (ep.episodeType === 'Mixte') {
+    const exc = ep.mixedExcitationLevel || 3;
+    const dep = ep.mixedDepressiveLevel || 3;
+    return `<span class="mood-badge" style="background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe">☯ Mixte +${exc}/−${dep}</span>`;
+  }
+  const ml = ep.moodLevel;
+  const color = ml>=3?'#c2410c':ml>=1?'#854d0e':ml===0?'#166534':ml>=-2?'#1d4ed8':'#1e3a8a';
+  const bg    = ml>=3?'#fff7ed':ml>=1?'#fef9c3':ml===0?'#f0fdf4':ml>=-2?'#eff6ff':'#dbeafe';
+  return `<span class="mood-badge" style="background:${bg};color:${color}">${getMoodEmoji(ml)} ${ml>0?'+':''}${ml} ${getMoodLabel(ml)}</span>`;
+}
+
+function renderEpisodeList() {
+  const el = document.getElementById('episodeList');
+  if (!episodes.length) { el.innerHTML = '<p style="color:#94a3b8;font-size:.85rem">Aucun épisode enregistré.</p>'; return; }
+  const sorted = [...episodes].sort((a,b)=>new Date(b.startDate)-new Date(a.startDate));
+  el.innerHTML = `<table class="data-table"><thead><tr><th>Début</th><th>Fin</th><th>Niveau</th><th>Déclencheur</th><th>Notes</th><th></th></tr></thead><tbody>${
+    sorted.map(e=>`<tr>
+      <td>${e.startDate}</td>
+      <td>${e.endDate||'<span style="color:#94a3b8">En cours</span>'}</td>
+      <td>${moodBadgeHTML(e)}</td>
+      <td style="max-width:150px;word-break:break-word">${e.triggerEvents||'—'}</td>
+      <td style="max-width:150px;word-break:break-word">${e.notes||'—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="delEpisode(${e.id})">✕</button></td>
+    </tr>`).join('')
+  }</tbody></table>`;
+  document.getElementById('cnt-ep').textContent = episodes.length;
+}
+
+function renderInstabilityList() {
+  // Rendered inside graphique tab accordion via graphInstabilityForm which has the form+list
+  document.getElementById('cnt-inst').textContent = instability.length;
+}
+
+function renderMedList() {
+  const el = document.getElementById('medList');
+  if (!medications.length) { el.innerHTML = '<p style="color:#94a3b8;font-size:.85rem">Aucun médicament enregistré.</p>'; return; }
+  el.innerHTML = `<table class="data-table"><thead><tr><th>Nom</th><th>Dosage</th><th>Fréquence</th><th>Début</th><th>Fin</th><th>Statut</th><th></th></tr></thead><tbody>${
+    medications.map(m=>`<tr>
+      <td>${m.name}</td>
+      <td>${m.dosage||'—'}</td>
+      <td>${m.frequency||'—'}</td>
+      <td>${m.startDate}</td>
+      <td>${m.endDate||'<span style="color:#94a3b8">En cours</span>'}</td>
+      <td>${m.isActive?'<span style="color:#166534;background:#f0fdf4;padding:2px 8px;border-radius:12px;font-size:.72rem;font-weight:600">Actif</span>':'<span style="color:#64748b;background:#f1f5f9;padding:2px 8px;border-radius:12px;font-size:.72rem">Arrêté</span>'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="delMed(${m.id})">✕</button></td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+function renderSubList() {
+  const el = document.getElementById('subList');
+  if (!substances.length) { el.innerHTML = '<p style="color:#94a3b8;font-size:.85rem">Aucune substance enregistrée.</p>'; return; }
+  el.innerHTML = `<table class="data-table"><thead><tr><th>Substance</th><th>Fréquence</th><th>Quantité</th><th>Début</th><th>Fin</th><th></th></tr></thead><tbody>${
+    substances.map(s=>`<tr>
+      <td>${s.name}</td>
+      <td>${s.frequency||'—'}</td>
+      <td>${s.quantity||'—'}</td>
+      <td>${s.startPeriod}</td>
+      <td>${s.endPeriod||'<span style="color:#94a3b8">En cours</span>'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="delSub(${s.id})">✕</button></td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+function renderHospList() {
+  const el = document.getElementById('hospList');
+  if (!hospitalizations.length) { el.innerHTML = '<p style="color:#94a3b8;font-size:.85rem">Aucune hospitalisation enregistrée.</p>'; return; }
+  el.innerHTML = `<table class="data-table"><thead><tr><th>Début</th><th>Fin</th><th>Lieu</th><th>Notes</th><th></th></tr></thead><tbody>${
+    hospitalizations.map(h=>`<tr>
+      <td>${h.startDate}</td>
+      <td>${h.endDate||'—'}</td>
+      <td>${h.location||'—'}</td>
+      <td>${h.notes||'—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="delHosp(${h.id})">✕</button></td>
+    </tr>`).join('')
+  }</tbody></table>`;
+  document.getElementById('cnt-hosp').textContent = hospitalizations.length;
+}
+
+function renderLifeEventList() {
+  const el = document.getElementById('lifeEventList');
+  if (!lifeEvents.length) { el.innerHTML = '<p style="color:#94a3b8;font-size:.85rem">Aucun événement enregistré.</p>'; return; }
+  const sorted = [...lifeEvents].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  el.innerHTML = `<table class="data-table"><thead><tr><th>Date</th><th>Catégorie</th><th>Titre</th><th>Description</th><th></th></tr></thead><tbody>${
+    sorted.map(ev=>`<tr>
+      <td>${ev.date}</td>
+      <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:12px;font-size:.72rem">${ev.category||'autre'}</span></td>
+      <td>${ev.title}</td>
+      <td style="max-width:200px;word-break:break-word">${ev.description||'—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="delLifeEvent(${ev.id})">✕</button></td>
+    </tr>`).join('')
+  }</tbody></table>`;
+  document.getElementById('cnt-le').textContent = lifeEvents.length;
+}
+
+// ──────────────────────────────────────────────
+// 14. REFRESH ALL
+// ──────────────────────────────────────────────
+function refreshAll() {
+  rebuildChart();
+  renderEpisodeList();
+  renderMedList();
+  renderSubList();
+  renderHospList();
+  renderLifeEventList();
+  renderInstabilityList();
+}
+
+// ──────────────────────────────────────────────
+// 15. EXCEL EXPORT (SheetJS) — compatible praticien mode
+// ──────────────────────────────────────────────
+function exportExcel() {
+  try {
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Épisodes d'humeur
+    const epRows = [['ID','Date de début','Date de fin',"Niveau d'humeur","Type d'épisode",'Événement déclencheur','Notes','Niveau excitation (mixte)','Niveau dépressif (mixte)']];
+    episodes.forEach(e => epRows.push([
+      e.id, e.startDate, e.endDate||'', e.moodLevel, e.episodeType||getEpisodeType(e.moodLevel),
+      e.triggerEvents||'', e.notes||'',
+      e.episodeType==='Mixte'?(e.mixedExcitationLevel||3):'',
+      e.episodeType==='Mixte'?(e.mixedDepressiveLevel||3):''
+    ]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(epRows), "Épisodes d'humeur");
+
+    // Sheet 2: Périodes d'instabilité
+    const instRows = [['ID','Date de début','Date de fin','Notes']];
+    instability.forEach(p => instRows.push([p.id, p.startDate, p.endDate||'', p.notes||'']));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(instRows), "Périodes d'instabilité");
+
+    // Sheet 3: Médicaments
+    const medRows = [['ID','Nom','Dosage','Fréquence','Date de début','Date de fin','Actif','Notes']];
+    medications.forEach(m => medRows.push([m.id, m.name, m.dosage||'', m.frequency||'', m.startDate, m.endDate||'', m.isActive?'Oui':'Non', m.notes||'']));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(medRows), 'Médicaments');
+
+    // Sheet 4: Substances
+    const subRows = [['ID','Nom','Fréquence','Quantité','Période de début','Période de fin','Actif','Notes']];
+    substances.forEach(s => subRows.push([s.id, s.name, s.frequency||'', s.quantity||'', s.startPeriod, s.endPeriod||'', s.isActive?'Oui':'Non', s.notes||'']));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(subRows), 'Substances');
+
+    // Sheet 5: Hospitalisations
+    if (hospitalizations.length > 0) {
+      const hospRows = [['Début','Fin','Lieu','Notes']];
+      hospitalizations.forEach(h => hospRows.push([h.startDate, h.endDate||'', h.location||'', h.notes||'']));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(hospRows), 'Hospitalisations');
+    }
+
+    // Sheet 6: Événements de vie
+    if (lifeEvents.length > 0) {
+      const leRows = [['Date','Titre','Catégorie','Description']];
+      lifeEvents.forEach(ev => leRows.push([ev.date, ev.title, ev.category||'autre', ev.description||'']));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(leRows), 'Événements de vie');
+    }
+
+    // Sheet 7: Résumé
+    const today = new Date().toLocaleDateString('fr-FR');
+    const mania = episodes.filter(e=>e.moodLevel>=3).length;
+    const hypo  = episodes.filter(e=>e.moodLevel>=1&&e.moodLevel<3).length;
+    const stable= episodes.filter(e=>e.moodLevel>-1&&e.moodLevel<1).length;
+    const depMin= episodes.filter(e=>e.moodLevel<=-1&&e.moodLevel>-3).length;
+    const depMaj= episodes.filter(e=>e.moodLevel<=-3).length;
+    const resumeRows = [
+      ['RÉSUMÉ DU SUIVI THYMIC'], [],
+      ["Date d'export :", today], [],
+      ['STATISTIQUES'], [],
+      ["Nombre total d'épisodes :", episodes.length],
+      ["Périodes d'instabilité :", instability.length],
+      ['Médicaments :', medications.length],
+      ['Substances :', substances.length],
+      ['Hospitalisations :', hospitalizations.length],
+      ["Événements de vie :", lifeEvents.length], [],
+      ['ÉPISODES PAR TYPE'], [],
+      ['Maniaques / Hypomaniaques :', mania],
+      ['Hypomaniaques légers :', hypo],
+      ['Stables :', stable],
+      ['Dépressifs modérés :', depMin],
+      ['Dépressifs sévères :', depMaj],
+      ["Stabilité :", episodes.length?`${Math.round(stable/episodes.length*100)}%`:'—'],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumeRows), 'Résumé');
+
+    const date = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `suivi-thymic-${date}.xlsx`);
+    toast('Export Excel réussi ✓');
+  } catch(err) {
+    alert('Erreur lors de l\'export : ' + err.message);
+  }
+}
+
+// ──────────────────────────────────────────────
+// 16. EXCEL IMPORT (SheetJS)
+// ──────────────────────────────────────────────
+function importExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type:'array', cellDates:true });
+
+      function formatDate(val) {
+        if (!val) return null;
+        if (val instanceof Date) { if(isNaN(val)) return null; return val.toISOString().split('T')[0]; }
+        const s = String(val).trim();
+        if (!s) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        if (/^\d{4}-\d{2}$/.test(s)) return s + '-01';
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) { const [d,m,y]=s.split('/'); return `${y}-${m}-${d}`; }
+        const p = new Date(s); return isNaN(p)?null:p.toISOString().split('T')[0];
+      }
+
+      let imported = { episodes:0, instability:0, medications:0, substances:0 };
+
+      // Episodes
+      const epSheet = wb.Sheets["Épisodes d'humeur"];
+      if (epSheet) {
+        const rows = XLSX.utils.sheet_to_json(epSheet, {header:1, defval:''});
+        rows.slice(1).forEach(row => {
+          const sd = formatDate(row[1]); if(!sd) return;
+          const epType = String(row[4]||'').trim();
+          const ml = parseInt(row[3])||0;
+          const isMixte = epType === 'Mixte';
+          const excLvl = isMixte ? (parseInt(row[7])||3) : undefined;
+          const depLvl = isMixte ? (parseInt(row[8])||3) : undefined;
+          const entry = { id:nextId(episodes), startDate:sd, endDate:formatDate(row[2])||null, moodLevel:isMixte?0:ml, episodeType:isMixte?'Mixte':getEpisodeType(ml), triggerEvents:row[5]?String(row[5]).trim():null, notes:row[6]?String(row[6]).trim():null };
+          if (isMixte) { entry.mixedExcitationLevel = excLvl; entry.mixedDepressiveLevel = depLvl; }
+          episodes.push(entry);
+          imported.episodes++;
+        });
+        save(KEYS.episodes, episodes);
+      }
+
+      // Instability
+      const instSheet = wb.Sheets["Périodes d'instabilité"];
+      if (instSheet) {
+        const rows = XLSX.utils.sheet_to_json(instSheet, {header:1, defval:''});
+        rows.slice(1).forEach(row => {
+          const sd = formatDate(row[1]); if(!sd) return;
+          instability.push({ id:nextId(instability), startDate:sd, endDate:formatDate(row[2])||null, notes:row[3]?String(row[3]).trim():null });
+          imported.instability++;
+        });
+        save(KEYS.instability, instability);
+      }
+
+      // Medications
+      const medSheet = wb.Sheets['Médicaments'];
+      if (medSheet) {
+        const rows = XLSX.utils.sheet_to_json(medSheet, {header:1, defval:''});
+        rows.slice(1).forEach(row => {
+          const name = String(row[1]||'').trim(); if(!name) return;
+          const sd = formatDate(row[4]); if(!sd) return;
+          medications.push({ id:nextId(medications), name, dosage:row[2]?String(row[2]).trim():null, frequency:row[3]?String(row[3]).trim():null, startDate:sd, endDate:formatDate(row[5])||null, isActive:String(row[6]).trim()==='Oui', notes:row[7]?String(row[7]).trim():null });
+          imported.medications++;
+        });
+        save(KEYS.medications, medications);
+      }
+
+      // Substances
+      const subSheet = wb.Sheets['Substances'];
+      if (subSheet) {
+        const rows = XLSX.utils.sheet_to_json(subSheet, {header:1, defval:''});
+        rows.slice(1).forEach(row => {
+          const name = String(row[1]||'').trim(); if(!name) return;
+          const sp = String(row[4]||'').trim(); if(!sp) return;
+          const spFmt = sp.length===7?sp:(formatDate(sp)?formatDate(sp).substring(0,7):null); if(!spFmt) return;
+          const ep = String(row[5]||'').trim();
+          const epFmt = ep.length===7?ep:(ep&&formatDate(ep)?formatDate(ep).substring(0,7):null);
+          substances.push({ id:nextId(substances), name, frequency:row[2]?String(row[2]).trim():null, quantity:row[3]?String(row[3]).trim():null, startPeriod:spFmt, endPeriod:epFmt||null, isActive:String(row[6]).trim()==='Oui', notes:row[7]?String(row[7]).trim():null });
+          imported.substances++;
+        });
+        save(KEYS.substances, substances);
+      }
+
+      input.value = '';
+      refreshAll();
+      toast(`Import réussi — ${imported.episodes} épisode(s), ${imported.instability} instabilité(s), ${imported.medications} médicament(s), ${imported.substances} substance(s)`);
+    } catch(err) {
+      alert('Erreur lors de l\'import : ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ──────────────────────────────────────────────
+// 17. PDF EXPORT
+// ──────────────────────────────────────────────
+async function exportPDF() {
+  if (!chartInstance) { alert('Aucun graphique à exporter.'); return; }
+  toast('Génération du PDF…');
+  try {
+    const canvas = document.getElementById('moodChart');
+    const imgData = canvas.toDataURL('image/png', 1.0);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('landscape', 'mm', 'a4');
+    const pw = pdf.internal.pageSize.getWidth();
+    const ph = pdf.internal.pageSize.getHeight();
+    const margin = 10;
+    const imgW = pw - margin * 2;
+    const imgH = (canvas.height / canvas.width) * imgW;
+
+    // Title
+    pdf.setFont('helvetica','bold');
+    pdf.setFontSize(14);
+    pdf.setTextColor(30, 41, 59);
+    pdf.text('Ligne de Vie Thymique', margin, 16);
+    pdf.setFont('helvetica','normal');
+    pdf.setFontSize(9);
+    pdf.setTextColor(100, 116, 139);
+    pdf.text('Généré le ' + new Date().toLocaleDateString('fr-FR'), margin, 22);
+
+    // Chart image
+    pdf.addImage(imgData, 'PNG', margin, 28, imgW, Math.min(imgH, ph - 60));
+
+    // Episode list (new page)
+    if (episodes.length > 0) {
+      pdf.addPage();
+      pdf.setFont('helvetica','bold');
+      pdf.setFontSize(12);
+      pdf.setTextColor(30, 41, 59);
+      pdf.text('Liste des épisodes', margin, 16);
+      pdf.setFont('helvetica','normal');
+      pdf.setFontSize(8);
+      let y = 24;
+      const sorted = [...episodes].sort((a,b)=>new Date(a.startDate)-new Date(b.startDate));
+      sorted.forEach(ep => {
+        if (y > ph - 15) { pdf.addPage(); y = 16; }
+        const lvlStr = (ep.moodLevel > 0 ? '+' : '') + ep.moodLevel;
+        const type = ep.episodeType || getEpisodeType(ep.moodLevel);
+        const line = `${ep.startDate} → ${ep.endDate||'en cours'} | ${lvlStr} ${type}${ep.triggerEvents?' | '+ep.triggerEvents:''}`;
+        pdf.setTextColor(ep.moodLevel>=3?180:ep.moodLevel<=-3?37:30, ep.moodLevel>=3?83:ep.moodLevel<=-3?99:41, ep.moodLevel>=3?28:ep.moodLevel<=-3?235:59);
+        pdf.text(line, margin, y);
+        y += 6;
+      });
+    }
+
+    const date = new Date().toISOString().split('T')[0];
+    pdf.save(`ligne-de-vie-${date}.pdf`);
+    toast('PDF exporté ✓');
+  } catch(err) {
+    alert('Erreur PDF : ' + err.message);
+    console.error(err);
+  }
+}
+
+// ──────────────────────────────────────────────
+// 18. UI HELPERS
+// ──────────────────────────────────────────────
+function showTab(tabId, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+  btn.classList.add('active');
+}
+
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  const icon = header.querySelector('.toggle-icon');
+  body.classList.toggle('open');
+  icon.textContent = body.classList.contains('open') ? '▲' : '▼';
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+// ──────────────────────────────────────────────
+// 19. INIT
+// ──────────────────────────────────────────────
+function init() {
+  // Inject forms into graphique tab accordions
+  document.getElementById('graphEpisodeForm').innerHTML = episodeFormHTML('gEpForm', 'Ajouter cet épisode');
+  document.getElementById('graphInstabilityForm').innerHTML = instabilityFormHTML('gInstForm');
+  document.getElementById('graphHospForm').innerHTML = hospFormHTML('gHospForm');
+  document.getElementById('graphLifeEventForm').innerHTML = lifeEventFormHTML('gLeForm');
+
+  // Inject forms into dedicated tabs
+  document.getElementById('episodeForm').innerHTML = episodeFormHTML('epForm', 'Enregistrer l\'épisode');
+  document.getElementById('medForm').innerHTML = medFormHTML('mForm');
+  document.getElementById('subForm').innerHTML = subFormHTML('sForm');
+  document.getElementById('hospForm').innerHTML = hospFormHTML('hForm');
+  document.getElementById('lifeEventForm').innerHTML = lifeEventFormHTML('leForm');
+
+  // Init mood display and mixed labels for all episode forms
+  ['gEpForm', 'epForm'].forEach(id => {
+    updateMoodDisplay(id, 0);
+    updateMixedDisplay(id, 'exc', 3);
+    updateMixedDisplay(id, 'dep', 3);
+  });
+
+  // Init overlay button states
+  updateBtn('btnHosp', true, 'on-hosp', '🏥');
+
+  // Render all lists
+  refreshAll();
+}
+
+init();
+</script>
+</body>
+</html>

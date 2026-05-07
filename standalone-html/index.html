@@ -1,0 +1,2243 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ligne de Vie Thymique - Version Autonome</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            /* Exact CSS variables from the React version */
+            --background: hsl(0, 0%, 100%);
+            --foreground: hsl(20, 14.3%, 4.1%);
+            --muted: hsl(60, 4.8%, 95.9%);
+            --muted-foreground: hsl(25, 5.3%, 44.7%);
+            --border: hsl(20, 5.9%, 90%);
+            --input: hsl(20, 5.9%, 90%);
+            --primary: hsl(207, 90%, 54%);
+            --primary-foreground: hsl(211, 100%, 99%);
+            --ring: hsl(20, 14.3%, 4.1%);
+            --radius: 0.5rem;
+
+            /* Professional medical color palette */
+            --mood-depression-severe: hsl(210, 85%, 30%);
+            --mood-depression-moderate: hsl(210, 75%, 45%);
+            --mood-euthymie: hsl(210, 15%, 55%);
+            --mood-hypomanie: hsl(35, 85%, 55%);
+            --mood-manie: hsl(10, 80%, 55%);
+            --medical-blue: hsl(210, 85%, 50%);
+            --medical-gray: hsl(210, 15%, 45%);
+            --medical-green: hsl(150, 70%, 45%);
+            --medical-purple: hsl(270, 60%, 50%);
+            --medical-surface: hsl(210, 20%, 98%);
+            --medical-border: hsl(210, 20%, 90%);
+            --medical-text-primary: hsl(210, 25%, 15%);
+            --medical-text-secondary: hsl(210, 15%, 45%);
+            --medical-pattern: hsl(210, 30%, 95%);
+            --medical-grid: hsl(210, 15%, 92%);
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: var(--medical-surface);
+            background-image: 
+                linear-gradient(135deg, transparent 25%, var(--medical-pattern) 25%, var(--medical-pattern) 50%, transparent 50%, transparent 75%, var(--medical-pattern) 75%),
+                linear-gradient(45deg, transparent 25%, var(--medical-grid) 25%, var(--medical-grid) 50%, transparent 50%, transparent 75%, var(--medical-grid) 75%);
+            background-size: 60px 60px, 20px 20px;
+            background-position: 0 0, 10px 10px;
+            color: var(--medical-text-primary);
+        }
+        
+        .medical-card {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+            border: 1px solid var(--medical-border);
+        }
+        
+        .medical-section-divider {
+            height: 1px;
+            background: linear-gradient(to right, var(--medical-blue), transparent);
+            opacity: 0.3;
+        }
+        
+        .btn-primary {
+            background: var(--medical-blue);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--medical-border);
+            border-radius: 0.5rem;
+            background: white;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--medical-blue);
+            box-shadow: 0 0 0 3px hsl(210, 85%, 50%, 0.1);
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--medical-text-primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .episode-item {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--medical-border);
+            background: white;
+            transition: all 0.2s;
+        }
+        
+        .episode-item:hover {
+            border-color: hsl(210, 20%, 80%);
+            transform: translateY(-1px);
+        }
+        
+        .mood-icon {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            margin-right: 0.75rem;
+        }
+        
+        .hidden { display: none; }
+        
+
+        
+        /* Timeline styles */
+        .timeline-bar {
+            height: 1.5rem;
+            border-radius: 9999px;
+            position: relative;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .timeline-text {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            padding: 0 0.75rem;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Medical gradient utilities */
+        .medical-gradient-bg {
+            background-image: 
+                linear-gradient(135deg, transparent 25%, var(--medical-pattern) 25%, var(--medical-pattern) 50%, transparent 50%, transparent 75%, var(--medical-pattern) 75%),
+                linear-gradient(45deg, transparent 25%, var(--medical-grid) 25%, var(--medical-grid) 50%, transparent 50%, transparent 75%, var(--medical-grid) 75%);
+            background-size: 60px 60px, 20px 20px;
+            background-position: 0 0, 10px 10px;
+        }
+
+        /* Utility classes for medical theme */
+        .bg-medical-surface { background-color: var(--medical-surface); }
+        .bg-medical-blue { background-color: var(--medical-blue); }
+        .bg-medical-green { background-color: var(--medical-green); }
+        .bg-medical-purple { background-color: var(--medical-purple); }
+        .border-medical-border { border-color: var(--medical-border); }
+        .text-medical-text-primary { color: var(--medical-text-primary); }
+        .text-medical-text-secondary { color: var(--medical-text-secondary); }
+        
+        /* Gradient classes */
+        .bg-gradient-to-b.from-medical-blue.to-medical-green { 
+            background: linear-gradient(to bottom, var(--medical-blue), var(--medical-green)); 
+        }
+        .bg-gradient-to-b.from-medical-green.to-medical-purple { 
+            background: linear-gradient(to bottom, var(--medical-green), var(--medical-purple)); 
+        }
+        .bg-gradient-to-br { background: linear-gradient(to bottom right, var(--start), var(--end)); }
+        .from-slate-50\/50 { --start: rgba(248, 250, 252, 0.5); }
+        .to-blue-50\/60 { --end: rgba(239, 246, 255, 0.6); }
+
+        /* Gradient with via support */
+        .bg-gradient-to-r.from-transparent.via-medical-border.to-transparent {
+            background: linear-gradient(to right, transparent, var(--medical-border), transparent);
+        }
+
+        /* Backdrop blur support */
+        .backdrop-blur-sm { backdrop-filter: blur(4px); }
+        .backdrop-blur-md { backdrop-filter: blur(12px); }
+        
+        /* Additional background utilities */
+        .bg-white\/95 { background-color: rgba(255, 255, 255, 0.95); }
+        .bg-medical-surface\/80 { background-color: hsla(210, 20%, 98%, 0.8); }
+        
+        /* Additional gradient backgrounds */
+        .bg-gradient-to-br.from-slate-50\/50.to-blue-50\/60 {
+            background: linear-gradient(to bottom right, rgba(248, 250, 252, 0.5), rgba(239, 246, 255, 0.6));
+        }
+        
+        /* Shadow utilities */
+        .shadow-lg { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1); }
+
+        /* Shadow support */
+        .shadow-inner { box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05); }
+
+        /* Grid utilities */
+        .grid { display: grid; }
+        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+        .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .gap-2 { gap: 0.5rem; }
+        .gap-3 { gap: 0.75rem; }
+        .gap-4 { gap: 1rem; }
+        .gap-8 { gap: 2rem; }
+
+        @media (min-width: 1024px) {
+            .lg\\:grid-cols-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+            .lg\\:col-span-3 { grid-column: span 3 / span 3; }
+            .lg\\:col-span-4 { grid-column: span 4 / span 4; }
+            .lg\\:col-span-5 { grid-column: span 5 / span 5; }
+            .lg\\:col-span-7 { grid-column: span 7 / span 7; }
+        }
+
+        /* Spacing utilities */
+        .space-y-3 > * + * { margin-top: 0.75rem; }
+        .space-y-4 > * + * { margin-top: 1rem; }
+        .mb-3 { margin-bottom: 0.75rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mb-6 { margin-bottom: 1.5rem; }
+        .mb-8 { margin-bottom: 2rem; }
+        .mb-16 { margin-bottom: 4rem; }
+        .mt-6 { margin-top: 1.5rem; }
+        .mt-20 { margin-top: 5rem; }
+        .mr-2 { margin-right: 0.5rem; }
+        .mr-3 { margin-right: 0.75rem; }
+        .mr-4 { margin-right: 1rem; }
+        .mr-6 { margin-right: 1.5rem; }
+        .ml-4 { margin-left: 1rem; }
+        .ml-6 { margin-left: 1.5rem; }
+        .ml-8 { margin-left: 2rem; }
+
+        /* Width and height utilities */
+        .w-1 { width: 0.25rem; }
+        .w-2 { width: 0.5rem; }
+        .w-3 { width: 0.75rem; }
+        .w-px { width: 1px; }
+        .h-5 { height: 1.25rem; }
+        .h-6 { height: 1.5rem; }
+        .h-8 { height: 2rem; }
+        .h-12 { height: 3rem; }
+        .h-px { height: 1px; }
+
+        /* Border utilities */
+        .border-t { border-top-width: 1px; }
+        .border-t-2 { border-top-width: 2px; }
+        .rounded-full { border-radius: 9999px; }
+
+        /* Flex utilities */
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-center { justify-content: center; }
+        .justify-between { justify-content: space-between; }
+        .flex-1 { flex: 1 1 0%; }
+
+        /* Text utilities */
+        .text-center { text-align: center; }
+        .text-xs { font-size: 0.75rem; }
+        .text-sm { font-size: 0.875rem; }
+        .text-lg { font-size: 1.125rem; }
+        .text-xl { font-size: 1.25rem; }
+        .text-2xl { font-size: 1.5rem; }
+        .text-3xl { font-size: 1.875rem; }
+        .text-4xl { font-size: 2.25rem; }
+        .font-medium { font-weight: 500; }
+        .font-semibold { font-weight: 600; }
+        .font-bold { font-weight: 700; }
+        .tracking-tight { letter-spacing: -0.025em; }
+
+        /* Padding utilities */
+        .p-4 { padding: 1rem; }
+        .p-6 { padding: 1.5rem; }
+        .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .px-4 { padding-left: 1rem; padding-right: 1rem; }
+        .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+        .py-12 { padding-top: 3rem; padding-bottom: 3rem; }
+
+        /* Position utilities */
+        .relative { position: relative; }
+
+        /* Max width utilities */
+        .max-w-full { max-width: 100%; }
+        .max-w-7xl { max-width: 80rem; margin-left: auto; margin-right: auto; }
+
+        /* Responsive utilities */
+        @media (min-width: 640px) {
+            .sm\\:px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+        }
+
+        @media (min-width: 1024px) {
+            .lg\\:px-8 { padding-left: 2rem; padding-right: 2rem; }
+        }
+    </style>
+</head>
+<body class="min-h-screen antialiased">
+    <div class="bg-medical-surface medical-gradient-bg medical-grid-bg font-inter text-medical-text-primary min-h-screen">
+        <!-- Header -->
+        <header class="bg-gradient-to-br from-slate-50/50 to-blue-50/60 backdrop-blur-md shadow-lg border-b border-medical-border">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div class="flex justify-between items-center">
+                    <div class="text-center flex-1">
+                        <div class="flex items-center justify-center mb-3">
+                            <div class="w-3 h-12 bg-gradient-to-b from-medical-blue to-medical-green rounded-full mr-6"></div>
+                            <h1 class="text-4xl font-bold text-medical-text-primary tracking-tight">Ligne de Vie Thymique</h1>
+                            <div class="w-3 h-12 bg-gradient-to-b from-medical-green to-medical-purple rounded-full ml-6"></div>
+                        </div>
+                        <p class="text-medical-text-secondary text-lg font-medium">Outil pour mieux tracer les fluctuations thymiques ainsi que les prises de traitements et de substances</p>
+                    </div>
+                    <div class="ml-8 flex gap-3">
+                        <button onclick="exportPDF()" class="btn-primary">
+                            📥 Exporter PDF
+                        </button>
+                        <button onclick="importData()" class="btn-primary">
+                            📤 Importer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+            <!-- Section 1: Épisodes Thymiques -->
+            <section class="mb-16">
+                <!-- Section Header -->
+                <div class="mb-8">
+                    <div class="flex items-center mb-4">
+                        <div class="w-1 h-8 rounded-full mr-4" style="background: var(--medical-blue);"></div>
+                        <h2 class="text-2xl font-semibold" style="color: var(--medical-text-primary);">Suivi des Épisodes Thymiques</h2>
+                    </div>
+                    <div class="medical-section-divider mb-8"></div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- Saisir un Épisode Thymique -->
+                    <div class="lg:col-span-5">
+                        <div class="medical-card p-6">
+                            <div class="flex items-center mb-6">
+                                <div class="w-2 h-8 rounded-full mr-4" style="background: var(--medical-blue);"></div>
+                                <h3 class="text-xl font-semibold" style="color: var(--medical-text-primary);">Saisir un Épisode Thymique</h3>
+                            </div>
+                            
+                            <form id="episode-form" onsubmit="addEpisode(event)">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="form-label"><strong>Période de l'épisode</strong></label>
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <input type="date" id="start-date" required class="form-input">
+                                            <input type="date" id="end-date" class="form-input">
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="form-label"><strong>Le niveau d'humeur le plus intense</strong></label>
+                                        <select id="mood-level" required class="form-input">
+                                            <option value="">Sélectionner un niveau</option>
+                                            <option value="5">+5 - Manie sévère</option>
+                                            <option value="4">+4 - Manie modérée</option>
+                                            <option value="3">+3 - Hypomanie</option>
+                                            <option value="2">+2 - Élation</option>
+                                            <option value="1">+1 - Joie normale</option>
+                                            <option value="0">0 - Euthymique</option>
+                                            <option value="-1">-1 - Tristesse normale</option>
+                                            <option value="-2">-2 - Humeur basse</option>
+                                            <option value="-3">-3 - Dépression légère</option>
+                                            <option value="-4">-4 - Dépression modérée</option>
+                                            <option value="-5">-5 - Dépression sévère</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="form-label"><strong>Événements déclencheurs</strong></label>
+                                        <textarea id="trigger-events" rows="3" class="form-input" placeholder="Décrivez les événements qui ont déclenché cet épisode..."></textarea>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="form-label">Notes</label>
+                                        <textarea id="notes" rows="3" class="form-input" placeholder="Notes additionnelles..."></textarea>
+                                    </div>
+                                    
+                                    <button type="submit" class="btn-primary w-full">
+                                        Ajouter l'épisode
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Échelle Thymique -->
+                    <div class="lg:col-span-3">
+                        <div class="medical-card p-6">
+                            <div class="flex items-center mb-6">
+                                <div class="w-2 h-8 rounded-full mr-4" style="background: var(--medical-blue);"></div>
+                                <h3 class="text-xl font-semibold" style="color: var(--medical-text-primary);">Échelle Thymique</h3>
+                            </div>
+                            
+                            <div class="space-y-3 text-sm">
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(10, 80%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(10, 80%, 55%);"></div>
+                                    <span><strong>+5</strong> - Manie sévère</span>
+                                </div>
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(10, 80%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(10, 80%, 60%);"></div>
+                                    <span><strong>+4</strong> - Manie modérée</span>
+                                </div>
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(35, 85%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(35, 85%, 55%);"></div>
+                                    <span><strong>+3</strong> - Hypomanie</span>
+                                </div>
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(35, 85%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(35, 85%, 65%);"></div>
+                                    <span><strong>+2</strong> - Élation</span>
+                                </div>
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(35, 85%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(35, 85%, 75%);"></div>
+                                    <span><strong>+1</strong> - Joie normale</span>
+                                </div>
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(210, 15%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(210, 15%, 55%);"></div>
+                                    <span><strong>0</strong> - Euthymique</span>
+                                </div>
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(210, 75%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(210, 75%, 75%);"></div>
+                                    <span><strong>-1</strong> - Tristesse normale</span>
+                                </div>
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(210, 75%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(210, 75%, 65%);"></div>
+                                    <span><strong>-2</strong> - Humeur basse</span>
+                                </div>
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(210, 85%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(210, 85%, 55%);"></div>
+                                    <span><strong>-3</strong> - Dépression légère</span>
+                                </div>
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(210, 85%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(210, 85%, 45%);"></div>
+                                    <span><strong>-4</strong> - Dépression modérée</span>
+                                </div>
+                                <div class="flex items-center p-2 rounded" style="background-color: hsl(210, 85%, 95%);">
+                                    <div class="w-6 h-6 rounded-full mr-3" style="background-color: hsl(210, 85%, 30%);"></div>
+                                    <span><strong>-5</strong> - Dépression sévère</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Historique des Épisodes -->
+                    <div class="lg:col-span-4">
+                        <div class="medical-card p-6">
+                            <div class="flex items-center mb-6">
+                                <div class="w-2 h-8 rounded-full mr-4" style="background: var(--medical-blue);"></div>
+                                <h3 class="text-xl font-semibold" style="color: var(--medical-text-primary);">Historique des Épisodes</h3>
+                            </div>
+                            <div id="episodes-list" class="space-y-3 max-h-96 overflow-y-auto">
+                                <!-- Episodes will be rendered here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Médicaments -->
+            <section class="mb-16">
+                <div class="mb-8">
+                    <div class="flex items-center mb-4">
+                        <div class="w-1 h-8 rounded-full mr-4" style="background: var(--medical-green);"></div>
+                        <h2 class="text-2xl font-semibold" style="color: var(--medical-text-primary);">Gestion des Médicaments</h2>
+                    </div>
+                    <div class="medical-section-divider mb-8" style="background: linear-gradient(to right, var(--medical-green), transparent); opacity: 0.3;"></div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- Suivi des Médicaments -->
+                    <div class="lg:col-span-5">
+                        <div class="medical-card p-6">
+                            <div class="flex items-center mb-6">
+                                <div class="w-2 h-8 rounded-full mr-4" style="background: var(--medical-green);"></div>
+                                <h3 class="text-xl font-semibold" style="color: var(--medical-text-primary);">Suivi des Médicaments</h3>
+                            </div>
+                            
+                            <form id="medication-form" onsubmit="addMedication(event)">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="form-label">Nom du médicament</label>
+                                        <input type="text" id="med-name" required class="form-input">
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="form-label">Dosage</label>
+                                            <input type="text" id="med-dosage" class="form-input">
+                                        </div>
+                                        <div>
+                                            <label class="form-label">Fréquence</label>
+                                            <select id="med-frequency" class="form-input">
+                                                <option value="daily">Quotidien</option>
+                                                <option value="twice_daily">2x/jour</option>
+                                                <option value="three_times_daily">3x/jour</option>
+                                                <option value="weekly">Hebdomadaire</option>
+                                                <option value="monthly">Mensuel</option>
+                                                <option value="as_needed">Si besoin</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="form-label">Date de début</label>
+                                            <input type="date" id="med-start-date" required class="form-input">
+                                        </div>
+                                        <div>
+                                            <label class="form-label">Date de fin</label>
+                                            <input type="date" id="med-end-date" class="form-input">
+                                        </div>
+                                    </div>
+                                    
+                                    <button type="submit" class="btn-primary w-full" style="background: var(--medical-green);">
+                                        Ajouter le médicament
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Mes Médicaments -->
+                    <div class="lg:col-span-7">
+                        <div class="medical-card p-6">
+                            <div class="flex items-center mb-6">
+                                <div class="w-2 h-8 rounded-full mr-4" style="background: var(--medical-green);"></div>
+                                <h3 class="text-xl font-semibold" style="color: var(--medical-text-primary);">Mes Médicaments</h3>
+                            </div>
+                            <div id="medications-list" class="space-y-3 max-h-96 overflow-y-auto">
+                                <!-- Medications will be rendered here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Substances -->
+            <section class="mb-16">
+                <div class="mb-8">
+                    <div class="flex items-center mb-4">
+                        <div class="w-1 h-8 rounded-full mr-4" style="background: var(--medical-purple);"></div>
+                        <h2 class="text-2xl font-semibold" style="color: var(--medical-text-primary);">Suivi des Substances</h2>
+                    </div>
+                    <div class="medical-section-divider mb-8" style="background: linear-gradient(to right, var(--medical-purple), transparent); opacity: 0.3;"></div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- Substances -->
+                    <div class="lg:col-span-5">
+                        <div class="medical-card p-6">
+                            <div class="flex items-center mb-6">
+                                <div class="w-2 h-8 rounded-full mr-4" style="background: var(--medical-purple);"></div>
+                                <h3 class="text-xl font-semibold" style="color: var(--medical-text-primary);">Substances</h3>
+                            </div>
+                            
+                            <form id="substance-form" onsubmit="addSubstance(event)">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="form-label">Nom de la substance</label>
+                                        <input type="text" id="sub-name" required class="form-input">
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="form-label">Fréquence</label>
+                                            <select id="sub-frequency" class="form-input">
+                                                <option value="daily">Quotidien</option>
+                                                <option value="several_weekly">Plusieurs/semaine</option>
+                                                <option value="weekly">Hebdomadaire</option>
+                                                <option value="several_monthly">Plusieurs/mois</option>
+                                                <option value="monthly">Mensuel</option>
+                                                <option value="occasional">Ponctuel</option>
+                                                <option value="festive">Festif</option>
+                                                <option value="rare">Rare</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="form-label">Quantité</label>
+                                            <input type="text" id="sub-quantity" class="form-input">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="form-label">Période de début</label>
+                                            <input type="month" id="sub-start-period" required class="form-input">
+                                        </div>
+                                        <div>
+                                            <label class="form-label">Période de fin</label>
+                                            <input type="month" id="sub-end-period" class="form-input">
+                                        </div>
+                                    </div>
+                                    
+                                    <button type="submit" class="btn-primary w-full" style="background: var(--medical-purple);">
+                                        Ajouter la substance
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Substances -->
+                    <div class="lg:col-span-7">
+                        <div class="medical-card p-6">
+                            <div class="flex items-center mb-6">
+                                <div class="w-2 h-8 rounded-full mr-4" style="background: var(--medical-purple);"></div>
+                                <h3 class="text-xl font-semibold" style="color: var(--medical-text-primary);">Substances</h3>
+                            </div>
+                            <div id="substances-list" class="space-y-3 max-h-96 overflow-y-auto">
+                                <!-- Substances will be rendered here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Chart Section - Full Width -->
+        <section class="bg-white/95 backdrop-blur-sm border-t-2 border-medical-border shadow-inner" data-pdf-capture="mood-chart" style="border-color: var(--medical-border);">
+            <div class="max-w-full px-4 sm:px-6 lg:px-8 py-12">
+                <div class="mb-8">
+                    <div class="flex items-center justify-center mb-4">
+                        <div class="w-1 h-8 bg-gradient-to-b from-medical-blue to-medical-green rounded-full mr-4"></div>
+                        <h2 class="text-3xl font-semibold text-medical-text-primary text-center">Visualisation de la Ligne de Vie</h2>
+                        <div class="w-1 h-8 bg-gradient-to-b from-medical-green to-medical-purple rounded-full ml-4"></div>
+                    </div>
+                    <div class="h-px bg-gradient-to-r from-transparent via-medical-border to-transparent mb-8"></div>
+                </div>
+                
+                <div class="flex items-center justify-center mb-6">
+                    <div class="flex gap-2">
+                        <button onclick="resetZoom()" class="btn-primary">
+                            🔄 Réinitialiser
+                        </button>
+                        <div class="text-sm px-3 py-2 rounded-lg" style="background: hsl(210, 15%, 95%); color: hsl(210, 15%, 45%);">
+                            💡 Molette: zoom | Glisser: déplacer | ← →: naviguer | Origine: réinitialiser
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="relative mb-6" style="height: 600px; cursor: grab;">
+                    <canvas id="moodChart" style="cursor: grab;"></canvas>
+                </div>
+                
+                <!-- Timeline Controls -->
+                <div class="space-y-4">
+                    <div class="medical-card p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center">
+                                <div class="w-2 h-5 rounded-full mr-2" style="background: var(--medical-green);"></div>
+                                <h4 class="font-semibold" style="color: var(--medical-text-primary);">Traitements Médicamenteux</h4>
+                            </div>
+                            <button onclick="toggleMedicationsTimeline()" id="medications-toggle" class="text-sm px-3 py-1 rounded" style="background: hsl(150, 70%, 95%); color: hsl(150, 70%, 35%);">
+                                Masquer
+                            </button>
+                        </div>
+                        <div id="medications-timeline" class="min-h-[60px] rounded-lg p-3" style="background: hsl(150, 70%, 97%);">
+                            <!-- Medications timeline will be rendered here -->
+                        </div>
+                    </div>
+                    
+                    <div class="medical-card p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center">
+                                <div class="w-2 h-5 rounded-full mr-2" style="background: var(--medical-purple);"></div>
+                                <h4 class="font-semibold" style="color: var(--medical-text-primary);">Consommation de Substances</h4>
+                            </div>
+                            <button onclick="toggleSubstancesTimeline()" id="substances-toggle" class="text-sm px-3 py-1 rounded" style="background: hsl(270, 60%, 95%); color: hsl(270, 60%, 35%);">
+                                Masquer
+                            </button>
+                        </div>
+                        <div id="substances-timeline" class="min-h-[60px] rounded-lg p-3" style="background: hsl(270, 60%, 97%);">
+                            <!-- Substances timeline will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Episode Summary Section - Full Width -->
+        <section class="bg-medical-surface/80 backdrop-blur-sm border-t border-medical-border" style="border-color: var(--medical-border);">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div class="mb-6">
+                    <div class="flex items-center justify-center mb-4">
+                        <div class="w-1 h-6 bg-medical-blue rounded-full mr-3"></div>
+                        <h2 class="text-xl font-semibold text-medical-text-primary">Synthèse Statistique</h2>
+                    </div>
+                    <div class="h-px bg-gradient-to-r from-transparent via-medical-border to-transparent mb-6"></div>
+                </div>
+                <div id="episode-summary"></div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="bg-white/95 backdrop-blur-sm border-t-2 border-medical-border mt-20" style="border-color: var(--medical-border);">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                <div class="text-center">
+                    <div class="flex items-center justify-center mb-4">
+                        <div class="w-px h-8 bg-gradient-to-b from-medical-blue to-medical-green mr-4"></div>
+                        <p class="text-sm text-medical-text-secondary font-medium">Application pour mieux tracer les fluctuations thymiques</p>
+                        <div class="w-px h-8 bg-gradient-to-b from-medical-green to-medical-purple ml-4"></div>
+                    </div>
+                    <div class="h-px bg-gradient-to-r from-transparent via-medical-border to-transparent mb-4"></div>
+                    <p class="text-xs text-medical-text-secondary">⚠️ Outil d'aide au suivi - Consultez toujours un professionnel de santé pour un diagnostic médical</p>
+                </div>
+            </div>
+        </footer>
+        
+        <!-- Hidden file input for import -->
+        <input type="file" id="file-input" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+    </div>
+
+    <script>
+        // Generate realistic test data
+        function generateTestData() {
+            return {
+                episodes: [
+                    {
+                        id: 1,
+                        startDate: "2024-01-15",
+                        endDate: "2024-01-28",
+                        moodLevel: -4,
+                        triggerEvents: "Stress au travail, difficultés relationnelles",
+                        notes: "Épisode dépressif modéré avec fatigue importante"
+                    },
+                    {
+                        id: 2, 
+                        startDate: "2024-02-10",
+                        endDate: "2024-02-15",
+                        moodLevel: 3,
+                        triggerEvents: "Promotion au travail, optimisme",
+                        notes: "Phase hypomaniaque avec augmentation de l'énergie"
+                    },
+                    {
+                        id: 3,
+                        startDate: "2024-03-05",
+                        endDate: "2024-03-20",
+                        moodLevel: -3,
+                        triggerEvents: "Problèmes familiaux, isolement social",
+                        notes: "Dépression légère avec troubles du sommeil"
+                    },
+                    {
+                        id: 4,
+                        startDate: "2024-04-12",
+                        endDate: "2024-04-18",
+                        moodLevel: 2,
+                        triggerEvents: "Vacances, temps ensoleillé",
+                        notes: "Humeur élevée stable"
+                    },
+                    {
+                        id: 5,
+                        startDate: "2024-05-20",
+                        endDate: null,
+                        moodLevel: 0,
+                        triggerEvents: "Stabilisation du traitement",
+                        notes: "Phase euthymique en cours"
+                    },
+                    {
+                        id: 6,
+                        startDate: "2024-07-08",
+                        endDate: "2024-07-25",
+                        moodLevel: -5,
+                        triggerEvents: "Décès d'un proche, stress majeur",
+                        notes: "Épisode dépressif sévère nécessitant hospitalisation"
+                    },
+                    {
+                        id: 7,
+                        startDate: "2024-09-14",
+                        endDate: "2024-09-22",
+                        moodLevel: 4,
+                        triggerEvents: "Nouveau projet créatif, motivation élevée",
+                        notes: "Manie modérée avec créativité accrue"
+                    },
+                    {
+                        id: 8,
+                        startDate: "2024-11-03",
+                        endDate: "2024-11-15",
+                        moodLevel: -2,
+                        triggerEvents: "Changement de saison, fatigue",
+                        notes: "Humeur basse saisonnière"
+                    }
+                ],
+                medications: [
+                    {
+                        id: 1,
+                        name: "Lithium",
+                        dosage: "400mg",
+                        frequency: "twice_daily",
+                        startDate: "2023-12-01",
+                        endDate: null,
+                        active: true
+                    },
+                    {
+                        id: 2,
+                        name: "Lamotrigine",
+                        dosage: "200mg",
+                        frequency: "daily",
+                        startDate: "2024-01-15",
+                        endDate: null,
+                        active: true
+                    },
+                    {
+                        id: 3,
+                        name: "Quetiapine",
+                        dosage: "50mg",
+                        frequency: "daily",
+                        startDate: "2024-02-20",
+                        endDate: "2024-05-30",
+                        active: false
+                    },
+                    {
+                        id: 4,
+                        name: "Aripiprazole",
+                        dosage: "10mg",
+                        frequency: "daily",
+                        startDate: "2024-06-01",
+                        endDate: null,
+                        active: true
+                    },
+                    {
+                        id: 5,
+                        name: "Lorazépam",
+                        dosage: "1mg",
+                        frequency: "as_needed",
+                        startDate: "2024-03-10",
+                        endDate: "2024-08-15",
+                        active: false
+                    }
+                ],
+                substances: [
+                    {
+                        id: 1,
+                        name: "Alcool",
+                        frequency: "weekly",
+                        quantity: "1-2 verres",
+                        startPeriod: "2024-01",
+                        endPeriod: null,
+                        active: true
+                    },
+                    {
+                        id: 2,
+                        name: "Cannabis",
+                        frequency: "occasional",
+                        quantity: "Usage thérapeutique",
+                        startPeriod: "2024-03",
+                        endPeriod: "2024-09",
+                        active: false
+                    },
+                    {
+                        id: 3,
+                        name: "Caféine",
+                        frequency: "daily",
+                        quantity: "2-3 tasses café",
+                        startPeriod: "2023-01",
+                        endPeriod: null,
+                        active: true
+                    },
+                    {
+                        id: 4,
+                        name: "Tabac",
+                        frequency: "daily",
+                        quantity: "10 cigarettes/jour",
+                        startPeriod: "2020-01",
+                        endPeriod: "2024-06",
+                        active: false
+                    }
+                ]
+            };
+        }
+
+        // Data storage with test data initialization
+        let data = {
+            episodes: JSON.parse(localStorage.getItem('thymic-episodes') || 'null') || generateTestData().episodes,
+            medications: JSON.parse(localStorage.getItem('thymic-medications') || 'null') || generateTestData().medications,
+            substances: JSON.parse(localStorage.getItem('thymic-substances') || 'null') || generateTestData().substances
+        };
+
+        // Save test data to localStorage if it's the first time
+        if (!localStorage.getItem('thymic-episodes')) {
+            const testData = generateTestData();
+            localStorage.setItem('thymic-episodes', JSON.stringify(testData.episodes));
+            localStorage.setItem('thymic-medications', JSON.stringify(testData.medications));
+            localStorage.setItem('thymic-substances', JSON.stringify(testData.substances));
+        }
+
+        let chart = null;
+        let showMedicationsTimeline = true;
+        let showSubstancesTimeline = true;
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeChart();
+            renderEpisodes();
+            renderMedications();
+            renderSubstances();
+            updateTimelines();
+        });
+
+        // Chart initialization
+        function initializeChart() {
+            const ctx = document.getElementById('moodChart').getContext('2d');
+            
+            // Debug trigger events
+            const triggersCount = data.episodes.filter(ep => ep.triggerEvents && ep.triggerEvents.trim()).length;
+            console.log(`Episodes avec facteurs déclenchants: ${triggersCount}`);
+            data.episodes.forEach((ep, i) => {
+                if (ep.triggerEvents && ep.triggerEvents.trim()) {
+                    console.log(`Episode ${i}: ${ep.startDate} - "${ep.triggerEvents}"`);
+                }
+            });
+            
+            if (data.episodes.length === 0) {
+                return;
+            }
+
+            // Sort episodes by start date
+            const sortedEntries = [...data.episodes].sort((a, b) => 
+                new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+            );
+
+            // Generate realistic episode curves with progressive rise, peak, and descent
+            const timelineData = [];
+            
+            if (sortedEntries.length > 0) {
+                // Determine overall date range
+                const firstDate = new Date(sortedEntries[0].startDate);
+                const lastEntry = sortedEntries[sortedEntries.length - 1];
+                const lastDate = lastEntry.endDate ? new Date(lastEntry.endDate) : new Date();
+                
+                // Start with euthymia buffer
+                const startBuffer = new Date(firstDate);
+                startBuffer.setDate(startBuffer.getDate() - 7);
+                timelineData.push({
+                    date: startBuffer.toISOString().split('T')[0],
+                    value: 0,
+                    color: "#6b7280",
+                    isEuthymia: true
+                });
+                
+                // Process each episode with realistic curve generation
+                for (let i = 0; i < sortedEntries.length; i++) {
+                    const entry = sortedEntries[i];
+                    const entryStart = new Date(entry.startDate);
+                    const entryEnd = entry.endDate ? new Date(entry.endDate) : new Date();
+                    
+                    // Fill gap with euthymia if needed
+                    if (i > 0) {
+                        const prevEntry = sortedEntries[i - 1];
+                        const prevEnd = prevEntry.endDate ? new Date(prevEntry.endDate) : new Date(prevEntry.startDate);
+                        
+                        if ((entryStart.getTime() - prevEnd.getTime()) > 24 * 60 * 60 * 1000) {
+                            const gapStart = new Date(prevEnd);
+                            gapStart.setDate(gapStart.getDate() + 1);
+                            const gapEnd = new Date(entryStart);
+                            gapEnd.setDate(gapEnd.getDate() - 1);
+                            
+                            timelineData.push({
+                                date: gapStart.toISOString().split('T')[0],
+                                value: 0,
+                                color: "#6b7280",
+                                isEuthymia: true
+                            });
+                            timelineData.push({
+                                date: gapEnd.toISOString().split('T')[0],
+                                value: 0,
+                                color: "#6b7280",
+                                isEuthymia: true
+                            });
+                        }
+                    }
+                    
+                    // Generate episode curve points
+                    const episodeDuration = (entryEnd.getTime() - entryStart.getTime()) / (24 * 60 * 60 * 1000);
+                    const peakIntensity = entry.moodLevel;
+                    
+                    // Determine episode color based on intensity
+                    let episodeColor = "#6b7280"; // Gray for euthymia
+                    
+                    if (peakIntensity > 0) {
+                        // Orange/red gradient for excitement/mania - intensity based
+                        if (Math.abs(peakIntensity) >= 3) {
+                            episodeColor = "#ea580c"; // Dark orange/red for intense episodes (3+)
+                        } else {
+                            episodeColor = "#fed7aa"; // Pale orange for mild episodes (1-2)
+                        }
+                    } else if (peakIntensity < 0) {
+                        // Blue gradient for depression - intensity based
+                        if (Math.abs(peakIntensity) >= 3) {
+                            episodeColor = "#2563eb"; // Dark blue for intense episodes (3+)
+                        } else {
+                            episodeColor = "#bae6fd"; // Pale blue for mild episodes (1-2)
+                        }
+                    }
+                    
+                    if (episodeDuration <= 1) {
+                        // Short episode - single point
+                        timelineData.push({
+                            date: entry.startDate,
+                            value: peakIntensity,
+                            color: episodeColor,
+                            isEuthymia: false,
+                            episodeId: i
+                        });
+                    } else {
+                        // Multi-day episode with curve
+                        const totalDays = Math.max(1, Math.floor(episodeDuration));
+                        
+                        // Calculate key phases
+                        const risePhase = Math.ceil(totalDays * 0.3); // 30% for rise
+                        const peakPhase = Math.max(1, Math.ceil(totalDays * 0.2)); // 20% for peak
+                        const descentPhase = totalDays - risePhase - peakPhase; // Rest for descent
+                        
+                        let currentDay = 0;
+                        
+                        // Rise phase - progressive increase to peak
+                        for (let day = 0; day <= risePhase; day++) {
+                            const progress = day / risePhase;
+                            const currentDate = new Date(entryStart);
+                            currentDate.setDate(currentDate.getDate() + day);
+                            
+                            // Smooth curve rise (quadratic easing)
+                            const intensity = peakIntensity * (progress * progress);
+                            
+                            timelineData.push({
+                                date: currentDate.toISOString().split('T')[0],
+                                value: intensity,
+                                color: episodeColor,
+                                isEuthymia: false,
+                                episodeId: i
+                            });
+                            currentDay = day + 1;
+                        }
+                        
+                        // Peak phase - maintain intensity
+                        for (let day = 0; day < peakPhase; day++) {
+                            const currentDate = new Date(entryStart);
+                            currentDate.setDate(currentDate.getDate() + currentDay + day);
+                            
+                            // Slight variation around peak
+                            const variation = Math.sin(day * 0.5) * 0.1;
+                            const intensity = peakIntensity * (1 + variation);
+                            
+                            timelineData.push({
+                                date: currentDate.toISOString().split('T')[0],
+                                value: intensity,
+                                color: episodeColor,
+                                isEuthymia: false,
+                                episodeId: i
+                            });
+                        }
+                        currentDay += peakPhase;
+                        
+                        // Descent phase - return to euthymia
+                        for (let day = 0; day <= descentPhase; day++) {
+                            const progress = day / Math.max(1, descentPhase);
+                            const currentDate = new Date(entryStart);
+                            currentDate.setDate(currentDate.getDate() + currentDay + day);
+                            
+                            // Smooth descent (can be rapid or gradual based on episode length)
+                            const descentCurve = Math.pow(1 - progress, 1.5); // Slightly accelerated descent
+                            const intensity = peakIntensity * descentCurve;
+                            
+                            timelineData.push({
+                                date: currentDate.toISOString().split('T')[0],
+                                value: intensity,
+                                color: episodeColor,
+                                isEuthymia: false,
+                                episodeId: i
+                            });
+                        }
+                    }
+                }
+                
+                // End buffer with euthymia - extend to August 2025 minimum
+                const endBuffer = new Date(lastDate);
+                const august2025 = new Date('2025-08-31');
+                
+                // Use the later of: last episode + 7 days, or August 2025
+                const finalEndDate = endBuffer.getTime() < august2025.getTime() ? august2025 : endBuffer;
+                finalEndDate.setDate(finalEndDate.getDate() + 7);
+                
+                timelineData.push({
+                    date: finalEndDate.toISOString().split('T')[0],
+                    value: 0,
+                    color: "#6b7280",
+                    isEuthymia: true
+                });
+            }
+
+            const chartLabels = timelineData.map(point => point.date);
+            const chartData = timelineData.map(point => point.value);
+
+            // Create separate datasets for each zone with area fills
+            const excitementData = chartData.map(value => value > 0 ? value : null);
+            const depressionData = chartData.map(value => value < 0 ? value : null);
+            
+            const datasets = [
+                // Zone d'excitation avec remplissage
+                {
+                    label: "Épisodes d'excitation",
+                    data: excitementData,
+                    borderColor: "#f97316",
+                    backgroundColor: "rgba(249, 115, 22, 0.3)",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    tension: 0.4,
+                    fill: 'origin', // Fill to zero line
+                    spanGaps: false,
+                },
+                // Zone de dépression avec remplissage
+                {
+                    label: "Épisodes dépressifs", 
+                    data: depressionData,
+                    borderColor: "#3b82f6",
+                    backgroundColor: "rgba(59, 130, 246, 0.3)",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    tension: 0.4,
+                    fill: 'origin', // Fill to zero line
+                    spanGaps: false,
+                },
+                // Ligne de référence (euthymie)
+                {
+                    label: "Ligne de référence",
+                    data: chartData.map(() => 0),
+                    borderColor: "#9ca3af",
+                    borderWidth: 1,
+                    pointRadius: 0,
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0,
+                },
+                // Ligne principale de la courbe thymique
+                {
+                    label: "Ligne de vie thymique",
+                    data: chartData,
+                    borderColor: "#1f2937",
+                    backgroundColor: "transparent",
+                    borderWidth: 3,
+                    pointRadius: function(context) {
+                        const point = timelineData[context.dataIndex];
+                        return point && !point.isEuthymia ? 5 : 0;
+                    },
+                    pointBackgroundColor: function(context) {
+                        const point = timelineData[context.dataIndex];
+                        return point ? point.color : "#6b7280";
+                    },
+                    pointBorderColor: "#ffffff",
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 8,
+                    tension: 0.4,
+                    fill: false,
+                    spanGaps: true,
+                },
+            ];
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartLabels,
+                    datasets: datasets,
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            min: -5,
+                            max: 5,
+                            grid: {
+                                color: function(context) {
+                                    if (context.tick.value === 0) {
+                                        return "#9CA3AF";
+                                    }
+                                    return "#F3F4F6";
+                                },
+                            },
+                        },
+                        x: {
+                            type: "time",
+                            time: {
+                                unit: "month"
+                            },
+                            min: (() => {
+                                const minTime = Math.min(...data.episodes.map(entry => new Date(entry.startDate).getTime()));
+                                return minTime - (30 * 24 * 60 * 60 * 1000); // 30 days buffer
+                            })(),
+                            max: (() => {
+                                const maxTime = Math.max(...data.episodes.map(entry => 
+                                    entry.endDate ? new Date(entry.endDate).getTime() : new Date(entry.startDate).getTime()
+                                ));
+                                return maxTime + (30 * 24 * 60 * 60 * 1000); // 30 days buffer
+                            })(),
+                            ticks: {
+                                maxTicksLimit: 12,
+                                autoSkip: true,
+                                callback: function(value, index, values) {
+                                    const date = new Date(value);
+                                    const months = ['jan', 'fév', 'mar', 'avr', 'mai', 'jun', 'jul', 'aoû', 'sep', 'oct', 'nov', 'déc'];
+                                    return `${months[date.getMonth()]} ${date.getFullYear()}`;
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Période',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                    },
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                title: function(context) {
+                                    return `Date: ${context[0].label}`;
+                                },
+                                label: function(context) {
+                                    if (context.datasetIndex === 3) { // Main timeline
+                                        const value = context.parsed.y;
+                                        if (value === 0) return "État: Euthymie";
+                                        if (value > 0) return `Excitation: +${value}`;
+                                        return `Dépression: ${value}`;
+                                    }
+                                    return '';
+                                },
+                                afterBody: function(context) {
+                                    // Find matching entry for additional details
+                                    const dataIndex = context[0].dataIndex;
+                                    const point = timelineData[dataIndex];
+                                    
+                                    if (point && point.episodeId !== undefined) {
+                                        const matchingEntry = sortedEntries[point.episodeId];
+                                        return [
+                                            matchingEntry.endDate ? `Période: ${matchingEntry.startDate} au ${matchingEntry.endDate}` : `Début: ${matchingEntry.startDate} (en cours)`,
+                                            matchingEntry.triggerEvents ? `Déclencheurs: ${matchingEntry.triggerEvents}` : "",
+                                            matchingEntry.notes ? `Notes: ${matchingEntry.notes}` : "",
+                                        ].filter(Boolean);
+                                    }
+                                    
+                                    if (point && point.isEuthymia) {
+                                        return ["Période d'euthymie"];
+                                    }
+                                    
+                                    return [];
+                                },
+                            },
+                        },
+                        annotation: {
+                            annotations: (() => {
+                                const annotations = {};
+                                
+                                // Add trigger annotations exactly like React version
+                                data.episodes.forEach((episode, index) => {
+                                    if (episode.triggerEvents && episode.triggerEvents.trim()) {
+                                        // Extract key words from trigger events (first 2 phrases, max 3 words each)
+                                        const triggerKeywords = episode.triggerEvents
+                                            .split(/[,;.\n]/)
+                                            .map(phrase => phrase.trim())
+                                            .filter(phrase => phrase)
+                                            .slice(0, 2)
+                                            .map(phrase => phrase.split(' ').slice(0, 3).join(' '))
+                                            .join(' • ');
+
+                                        const startDate = episode.startDate;
+                                        const isPositive = episode.moodLevel > 0;
+                                        
+                                        // Calculate smart label position to avoid chart edges
+                                        let labelYPosition;
+                                        if (isPositive) {
+                                            labelYPosition = Math.min(episode.moodLevel + 1.2, 4.5);
+                                            if (episode.moodLevel >= 4) {
+                                                labelYPosition = episode.moodLevel - 1.5;
+                                            }
+                                        } else {
+                                            labelYPosition = Math.max(episode.moodLevel - 1.2, -4.5);
+                                            if (episode.moodLevel <= -4) {
+                                                labelYPosition = episode.moodLevel + 1.5;
+                                            }
+                                        }
+                                        
+                                        // Add connecting line from episode point to baseline (0)
+                                        annotations[`trigger_line_to_base_${index}`] = {
+                                            type: 'line',
+                                            xMin: startDate,
+                                            xMax: startDate,
+                                            yMin: episode.moodLevel,
+                                            yMax: 0,
+                                            borderColor: 'rgba(107, 114, 128, 0.7)',
+                                            borderWidth: 1,
+                                            borderDash: [3, 3]
+                                        };
+                                        
+                                        // Add connecting line from baseline to trigger label
+                                        annotations[`trigger_line_to_label_${index}`] = {
+                                            type: 'line',
+                                            xMin: startDate,
+                                            xMax: startDate,
+                                            yMin: 0,
+                                            yMax: labelYPosition,
+                                            borderColor: 'rgba(107, 114, 128, 0.7)',
+                                            borderWidth: 1,
+                                            borderDash: [3, 3]
+                                        };
+                                        
+                                        // Add trigger label box
+                                        annotations[`trigger_label_${index}`] = {
+                                            type: 'label',
+                                            xValue: startDate,
+                                            yValue: labelYPosition,
+                                            backgroundColor: 'rgba(243, 244, 246, 0.95)',
+                                            borderColor: 'rgba(107, 114, 128, 0.8)',
+                                            borderWidth: 1,
+                                            color: 'rgba(17, 24, 39, 1)',
+                                            content: triggerKeywords,
+                                            font: {
+                                                size: 9,
+                                                weight: '500'
+                                            },
+                                            padding: 6,
+                                            cornerRadius: 4,
+                                            textAlign: 'center'
+                                        };
+                                    }
+                                });
+                                
+                                return annotations;
+                            })()
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: {
+                                    enabled: true,
+                                    speed: 0.1
+                                },
+                                pinch: {
+                                    enabled: true
+                                },
+                                mode: 'x',
+                                onZoom: function(context) {
+                                    console.log('Zoom actif:', {
+                                        min: new Date(context.chart.scales.x.min).toLocaleDateString('fr-FR'),
+                                        max: new Date(context.chart.scales.x.max).toLocaleDateString('fr-FR'),
+                                        range: Math.round((context.chart.scales.x.max - context.chart.scales.x.min) / (24 * 60 * 60 * 1000)) + ' jours'
+                                    });
+                                    updateTimelines();
+                                }
+                            },
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                                modifierKey: null, // Allow panning without modifier key
+                                onPanStart: function(context) {
+                                    context.chart.canvas.style.cursor = 'grabbing';
+                                },
+                                onPan: function(context) {
+                                    updateTimelines();
+                                },
+                                onPanComplete: function(context) {
+                                    context.chart.canvas.style.cursor = 'grab';
+                                }
+                            },
+                            limits: {
+                                x: {
+                                    min: 'original',
+                                    max: 'original'
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update chart
+        function updateChart() {
+            if (chart) {
+                chart.destroy();
+            }
+            initializeChart();
+            // Wait for chart to render before updating timelines
+            setTimeout(() => {
+                updateTimelines();
+            }, 100);
+        }
+
+        // Reset zoom
+        function resetZoom() {
+            if (chart) {
+                chart.resetZoom();
+                updateTimelines();
+            }
+        }
+
+        // Episode management
+        function addEpisode(event) {
+            event.preventDefault();
+            
+            const episode = {
+                id: Date.now(),
+                startDate: document.getElementById('start-date').value,
+                endDate: document.getElementById('end-date').value || null,
+                moodLevel: parseInt(document.getElementById('mood-level').value),
+                triggerEvents: document.getElementById('trigger-events').value || null,
+                notes: document.getElementById('notes').value || null
+            };
+            
+            data.episodes.push(episode);
+            saveData();
+            
+            // Reset form
+            document.getElementById('episode-form').reset();
+            
+            // Update displays
+            renderEpisodes();
+            renderEpisodeSummary();
+            updateChart();
+        }
+
+        function deleteEpisode(id) {
+            data.episodes = data.episodes.filter(episode => episode.id !== id);
+            saveData();
+            renderEpisodes();
+            renderEpisodeSummary();
+            updateChart();
+        }
+
+        function renderEpisodes() {
+            const container = document.getElementById('episodes-list');
+            
+            if (data.episodes.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="text-4xl mb-3" style="color: var(--medical-text-secondary);">📋</div>
+                        <h3 class="text-lg font-semibold mb-2" style="color: var(--medical-text-primary);">Aucun épisode enregistré</h3>
+                        <p style="color: var(--medical-text-secondary);">Commencez par ajouter votre premier épisode thymique.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const sortedEpisodes = [...data.episodes].sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+            
+            container.innerHTML = sortedEpisodes.map(episode => {
+                const moodLabels = {
+                    5: 'Manie sévère',
+                    4: 'Manie modérée',
+                    3: 'Hypomanie', 
+                    2: 'Élation',
+                    1: 'Joie normale',
+                    0: 'Euthymique',
+                    '-1': 'Tristesse normale',
+                    '-2': 'Humeur basse',
+                    '-3': 'Dépression légère',
+                    '-4': 'Dépression modérée',
+                    '-5': 'Dépression sévère'
+                };
+                
+                const getMoodColor = (level) => {
+                    if (level >= 3) return 'hsl(10, 80%, 55%)';
+                    if (level >= 1) return 'hsl(35, 85%, 55%)';
+                    if (level === 0) return 'hsl(210, 15%, 55%)';
+                    if (level >= -2) return 'hsl(210, 75%, 55%)';
+                    return 'hsl(210, 85%, 40%)';
+                };
+                
+                const getMoodIcon = (level) => {
+                    if (level >= 3) return '🔴';
+                    if (level >= 1) return '🟡';
+                    if (level === 0) return '⚪';
+                    if (level >= -2) return '🔵';
+                    return '🟦';
+                };
+                
+                const formatDate = (date) => new Date(date).toLocaleDateString('fr-FR');
+                const dateRange = episode.endDate ? 
+                    `${formatDate(episode.startDate)} - ${formatDate(episode.endDate)}` : 
+                    `${formatDate(episode.startDate)} (en cours)`;
+                
+                return `
+                    <div class="episode-item">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center flex-1">
+                                <div class="mood-icon" style="background-color: ${getMoodColor(episode.moodLevel)}; color: white;">
+                                    ${getMoodIcon(episode.moodLevel)}
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="font-bold" style="color: var(--medical-text-primary);">${moodLabels[episode.moodLevel]}</span>
+                                        <span class="text-sm px-2 py-1 rounded-full font-medium" style="background-color: ${getMoodColor(episode.moodLevel)}20; color: ${getMoodColor(episode.moodLevel)};">
+                                            ${episode.moodLevel > 0 ? '+' : ''}${episode.moodLevel}
+                                        </span>
+                                    </div>
+                                    <div class="text-sm mb-2" style="color: var(--medical-text-secondary);">
+                                        📅 ${dateRange}
+                                    </div>
+                                    ${episode.triggerEvents ? `
+                                        <div class="text-sm mb-1" style="color: var(--medical-text-primary);">
+                                            <strong>Déclencheurs:</strong> ${episode.triggerEvents}
+                                        </div>
+                                    ` : ''}
+                                    ${episode.notes ? `
+                                        <div class="text-sm" style="color: var(--medical-text-secondary);">
+                                            <strong>Notes:</strong> ${episode.notes}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            <button onclick="deleteEpisode(${episode.id})" class="ml-4 p-2 text-red-500 hover:text-red-700 rounded-lg transition-colors text-lg">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Medication management
+        function addMedication(event) {
+            event.preventDefault();
+            
+            const medication = {
+                id: Date.now(),
+                name: document.getElementById('med-name').value,
+                dosage: document.getElementById('med-dosage').value || null,
+                frequency: document.getElementById('med-frequency').value,
+                startDate: document.getElementById('med-start-date').value,
+                endDate: document.getElementById('med-end-date').value || null,
+                active: !document.getElementById('med-end-date').value
+            };
+            
+            data.medications.push(medication);
+            saveData();
+            
+            // Reset form
+            document.getElementById('medication-form').reset();
+            
+            // Update displays
+            renderMedications();
+            updateTimelines();
+        }
+
+        function deleteMedication(id) {
+            data.medications = data.medications.filter(med => med.id !== id);
+            saveData();
+            renderMedications();
+            updateTimelines();
+        }
+
+        function renderMedications() {
+            const container = document.getElementById('medications-list');
+            
+            if (data.medications.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="text-4xl mb-3" style="color: var(--medical-text-secondary);">💊</div>
+                        <h3 class="text-lg font-semibold mb-2" style="color: var(--medical-text-primary);">Aucun médicament enregistré</h3>
+                        <p style="color: var(--medical-text-secondary);">Ajoutez vos traitements médicamenteux.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = data.medications.map(med => {
+                const formatDate = (date) => new Date(date).toLocaleDateString('fr-FR');
+                const dateRange = med.endDate ? `${formatDate(med.startDate)} - ${formatDate(med.endDate)}` : `Depuis ${formatDate(med.startDate)}`;
+                
+                return `
+                    <div class="episode-item">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center flex-1">
+                                <div class="mood-icon" style="background-color: var(--medical-green); color: white;">
+                                    💊
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="font-bold" style="color: var(--medical-text-primary);">${med.name}</span>
+                                        ${med.active ? 
+                                            '<span class="text-xs px-2 py-1 rounded-full font-medium" style="background: hsl(150, 70%, 95%); color: hsl(150, 70%, 35%);">Actif</span>' : 
+                                            '<span class="text-xs px-2 py-1 rounded-full font-medium" style="background: hsl(210, 15%, 95%); color: hsl(210, 15%, 45%);">Inactif</span>'
+                                        }
+                                    </div>
+                                    <div class="text-sm mb-1" style="color: var(--medical-text-secondary);">
+                                        ${med.dosage ? `${med.dosage} - ` : ''}${med.frequency}
+                                    </div>
+                                    <div class="text-sm" style="color: var(--medical-text-secondary);">
+                                        📅 ${dateRange}
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="deleteMedication(${med.id})" class="ml-4 p-2 text-red-500 hover:text-red-700 rounded-lg transition-colors text-lg">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Substance management
+        function addSubstance(event) {
+            event.preventDefault();
+            
+            const substance = {
+                id: Date.now(),
+                name: document.getElementById('sub-name').value,
+                frequency: document.getElementById('sub-frequency').value,
+                quantity: document.getElementById('sub-quantity').value || null,
+                startPeriod: document.getElementById('sub-start-period').value,
+                endPeriod: document.getElementById('sub-end-period').value || null,
+                active: !document.getElementById('sub-end-period').value
+            };
+            
+            data.substances.push(substance);
+            saveData();
+            
+            // Reset form
+            document.getElementById('substance-form').reset();
+            
+            // Update displays
+            renderSubstances();
+            updateTimelines();
+        }
+
+        function deleteSubstance(id) {
+            data.substances = data.substances.filter(sub => sub.id !== id);
+            saveData();
+            renderSubstances();
+            updateTimelines();
+        }
+
+        function renderSubstances() {
+            const container = document.getElementById('substances-list');
+            
+            if (data.substances.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="text-4xl mb-3" style="color: var(--medical-text-secondary);">🍷</div>
+                        <h3 class="text-lg font-semibold mb-2" style="color: var(--medical-text-primary);">Aucune substance enregistrée</h3>
+                        <p style="color: var(--medical-text-secondary);">Ajoutez vos consommations de substances.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = data.substances.map(sub => {
+                const formatPeriod = (period) => period.replace('-', '/');
+                const periodRange = sub.endPeriod ? `${formatPeriod(sub.startPeriod)} - ${formatPeriod(sub.endPeriod)}` : `Depuis ${formatPeriod(sub.startPeriod)}`;
+                
+                return `
+                    <div class="episode-item">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center flex-1">
+                                <div class="mood-icon" style="background-color: var(--medical-purple); color: white;">
+                                    🍷
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="font-bold" style="color: var(--medical-text-primary);">${sub.name}</span>
+                                        ${sub.active ? 
+                                            '<span class="text-xs px-2 py-1 rounded-full font-medium" style="background: hsl(270, 60%, 95%); color: hsl(270, 60%, 35%);">Actif</span>' : 
+                                            '<span class="text-xs px-2 py-1 rounded-full font-medium" style="background: hsl(210, 15%, 95%); color: hsl(210, 15%, 45%);">Inactif</span>'
+                                        }
+                                    </div>
+                                    <div class="text-sm mb-1" style="color: var(--medical-text-secondary);">
+                                        ${sub.frequency}${sub.quantity ? ` - ${sub.quantity}` : ''}
+                                    </div>
+                                    <div class="text-sm" style="color: var(--medical-text-secondary);">
+                                        📅 ${periodRange}
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="deleteSubstance(${sub.id})" class="ml-4 p-2 text-red-500 hover:text-red-700 rounded-lg transition-colors text-lg">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Timeline management
+        function toggleMedicationsTimeline() {
+            showMedicationsTimeline = !showMedicationsTimeline;
+            const toggle = document.getElementById('medications-toggle');
+            const timeline = document.getElementById('medications-timeline');
+            
+            if (showMedicationsTimeline) {
+                timeline.style.display = 'block';
+                toggle.textContent = 'Masquer';
+                toggle.style.background = 'hsl(150, 70%, 95%)';
+                toggle.style.color = 'hsl(150, 70%, 35%)';
+            } else {
+                timeline.style.display = 'none';
+                toggle.textContent = 'Afficher';
+                toggle.style.background = 'hsl(210, 15%, 95%)';
+                toggle.style.color = 'hsl(210, 15%, 45%)';
+            }
+        }
+
+        function toggleSubstancesTimeline() {
+            showSubstancesTimeline = !showSubstancesTimeline;
+            const toggle = document.getElementById('substances-toggle');
+            const timeline = document.getElementById('substances-timeline');
+            
+            if (showSubstancesTimeline) {
+                timeline.style.display = 'block';
+                toggle.textContent = 'Masquer';
+                toggle.style.background = 'hsl(270, 60%, 95%)';
+                toggle.style.color = 'hsl(270, 60%, 35%)';
+            } else {
+                timeline.style.display = 'none';
+                toggle.textContent = 'Afficher';
+                toggle.style.background = 'hsl(210, 15%, 95%)';
+                toggle.style.color = 'hsl(210, 15%, 45%)';
+            }
+        }
+
+        function updateTimelines() {
+            if (!chart) return;
+            
+            // Get current chart time range (zoom-aware)
+            let chartStartTime, chartEndTime;
+            
+            // Always use current chart scale range (works with zoom/pan)
+            if (chart.scales && chart.scales.x) {
+                chartStartTime = chart.scales.x.min;
+                chartEndTime = chart.scales.x.max;
+                console.log('Timeline sync - Using chart scales:', {
+                    min: new Date(chartStartTime).toLocaleDateString('fr-FR'),
+                    max: new Date(chartEndTime).toLocaleDateString('fr-FR'),
+                    range: Math.round((chartEndTime - chartStartTime) / (24 * 60 * 60 * 1000)) + " jours"
+                });
+            } else {
+                // Use reasonable data-based range when not zoomed
+                if (data.episodes.length > 0) {
+                    const minTime = Math.min(...data.episodes.map(entry => new Date(entry.startDate).getTime()));
+                    const maxTime = Math.max(...data.episodes.map(entry => 
+                        entry.endDate ? new Date(entry.endDate).getTime() : new Date(entry.startDate).getTime()
+                    ));
+                    // Add reasonable padding (30 days each side)
+                    chartStartTime = minTime - (30 * 24 * 60 * 60 * 1000);
+                    chartEndTime = maxTime + (30 * 24 * 60 * 60 * 1000);
+                } else {
+                    // Default range when no episodes
+                    const now = new Date().getTime();
+                    chartStartTime = now - (365 * 24 * 60 * 60 * 1000); // 1 year ago
+                    chartEndTime = now + (30 * 24 * 60 * 60 * 1000); // 30 days ahead
+                }
+            }
+            
+            const chartRange = chartEndTime - chartStartTime;
+
+            // Helper function to calculate timeline bar positioning
+            function calculateTimelinePosition(startTime, endTime) {
+                const leftPercent = ((startTime - chartStartTime) / chartRange) * 100;
+                const widthPercent = ((endTime - startTime) / chartRange) * 100;
+                
+                return {
+                    left: Math.max(0, leftPercent),
+                    width: Math.min(100 - Math.max(0, leftPercent), Math.max(widthPercent, 2)) // Minimum 2% width
+                };
+            }
+
+            // Update medications timeline with synchronized positioning
+            const medTimeline = document.getElementById('medications-timeline');
+            if (showMedicationsTimeline && data.medications.length > 0) {
+                const medicationBars = data.medications.map((med, index) => {
+                    const startTime = new Date(med.startDate).getTime();
+                    const endTime = med.endDate ? new Date(med.endDate).getTime() : new Date().getTime();
+                    
+                    const position = calculateTimelinePosition(startTime, endTime);
+                    
+                    const colors = [
+                        'hsl(150, 70%, 50%)', 'hsl(150, 60%, 55%)', 'hsl(150, 80%, 45%)', 'hsl(150, 65%, 52%)',
+                        'hsl(160, 70%, 50%)', 'hsl(140, 70%, 50%)', 'hsl(170, 60%, 50%)', 'hsl(130, 70%, 50%)'
+                    ];
+                    
+                    return `
+                        <div class="timeline-medication-bar" style="
+                            position: absolute;
+                            left: ${position.left}%;
+                            width: ${position.width}%;
+                            height: 24px;
+                            background-color: ${colors[index % colors.length]};
+                            border-radius: 4px;
+                            top: ${index * 28}px;
+                            border: 1px solid rgba(255,255,255,0.3);
+                            display: flex;
+                            align-items: center;
+                            padding: 0 8px;
+                            font-size: 11px;
+                            font-weight: 600;
+                            color: white;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        ">
+                            <div style="overflow: hidden; text-overflow: ellipsis;">
+                                ${med.name}${med.dosage ? ` ${med.dosage}` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                const totalHeight = Math.max(data.medications.length * 28 + 8, 60);
+                medTimeline.innerHTML = `
+                    <div style="position: relative; height: ${totalHeight}px; min-height: 60px;">
+                        ${medicationBars}
+                    </div>
+                `;
+            } else if (showMedicationsTimeline) {
+                medTimeline.innerHTML = '<div class="text-center py-4" style="color: var(--medical-text-secondary);">Aucun médicament ajouté</div>';
+            }
+
+            // Update substances timeline with synchronized positioning  
+            const subTimeline = document.getElementById('substances-timeline');
+            if (showSubstancesTimeline && data.substances.length > 0) {
+                const substanceBars = data.substances.map((sub, index) => {
+                    // Parse substance periods (YYYY-MM format to date)
+                    const startTime = new Date(sub.startPeriod + '-01').getTime();
+                    const endTime = sub.endPeriod ? new Date(sub.endPeriod + '-01').getTime() : new Date().getTime();
+                    
+                    const position = calculateTimelinePosition(startTime, endTime);
+                    
+                    const colors = [
+                        'hsl(270, 60%, 55%)', 'hsl(270, 70%, 50%)', 'hsl(270, 50%, 60%)', 'hsl(270, 65%, 52%)',
+                        'hsl(280, 60%, 55%)', 'hsl(260, 60%, 55%)', 'hsl(290, 55%, 55%)', 'hsl(250, 65%, 55%)'
+                    ];
+                    
+                    return `
+                        <div class="timeline-substance-bar" style="
+                            position: absolute;
+                            left: ${position.left}%;
+                            width: ${position.width}%;
+                            height: 24px;
+                            background-color: ${colors[index % colors.length]};
+                            border-radius: 4px;
+                            top: ${index * 28}px;
+                            border: 1px solid rgba(255,255,255,0.3);
+                            display: flex;
+                            align-items: center;
+                            padding: 0 8px;
+                            font-size: 11px;
+                            font-weight: 600;
+                            color: white;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        ">
+                            <div style="overflow: hidden; text-overflow: ellipsis;">
+                                ${sub.name}${sub.quantity ? ` ${sub.quantity}` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                const totalHeight = Math.max(data.substances.length * 28 + 8, 60);
+                subTimeline.innerHTML = `
+                    <div style="position: relative; height: ${totalHeight}px; min-height: 60px;">
+                        ${substanceBars}
+                    </div>
+                `;
+            } else if (showSubstancesTimeline) {
+                subTimeline.innerHTML = '<div class="text-center py-4" style="color: var(--medical-text-secondary);">Aucune substance ajoutée</div>';
+            }
+        }
+
+
+
+        // Data persistence
+        function saveData() {
+            localStorage.setItem('thymic-episodes', JSON.stringify(data.episodes));
+            localStorage.setItem('thymic-medications', JSON.stringify(data.medications));
+            localStorage.setItem('thymic-substances', JSON.stringify(data.substances));
+        }
+
+        // Export/Import functionality
+        async function exportPDF() {
+            try {
+                console.log('Starting PDF export...');
+                if (!window.jspdf) {
+                    alert('jsPDF library not loaded. Please refresh the page.');
+                    return;
+                }
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                
+                // Add title
+                pdf.setFontSize(20);
+                pdf.text('Ligne de Vie Thymique - Rapport', 20, 30);
+                
+                // Add date
+                const today = new Date().toLocaleDateString('fr-FR');
+                pdf.setFontSize(12);
+                pdf.text(`Généré le: ${today}`, 20, 45);
+                
+                // Capture the chart
+                const chartCanvas = document.getElementById('moodChart');
+                if (chartCanvas) {
+                    const chartImg = chartCanvas.toDataURL('image/png');
+                    pdf.addImage(chartImg, 'PNG', 20, 60, 160, 100);
+                }
+                
+                // Add episodes summary
+                pdf.setFontSize(16);
+                pdf.text('Résumé des Épisodes:', 20, 180);
+                
+                let yPos = 190;
+                pdf.setFontSize(10);
+                data.episodes.forEach((episode, index) => {
+                    if (yPos > 270) {
+                        pdf.addPage();
+                        yPos = 20;
+                    }
+                    const period = episode.endDate ? 
+                        `${episode.startDate} au ${episode.endDate}` : 
+                        `Depuis ${episode.startDate}`;
+                    pdf.text(`${index + 1}. ${period} - Niveau: ${episode.moodLevel}`, 20, yPos);
+                    if (episode.triggerEvents) {
+                        yPos += 5;
+                        pdf.text(`   Déclencheurs: ${episode.triggerEvents}`, 20, yPos);
+                    }
+                    yPos += 8;
+                });
+                
+                // Add medications if any
+                if (data.medications.length > 0) {
+                    if (yPos > 250) {
+                        pdf.addPage();
+                        yPos = 20;
+                    } else {
+                        yPos += 10;
+                    }
+                    
+                    pdf.setFontSize(16);
+                    pdf.text('Traitements Médicamenteux:', 20, yPos);
+                    yPos += 10;
+                    
+                    pdf.setFontSize(10);
+                    data.medications.forEach((med, index) => {
+                        if (yPos > 270) {
+                            pdf.addPage();
+                            yPos = 20;
+                        }
+                        const period = med.endDate ? 
+                            `${med.startDate} au ${med.endDate}` : 
+                            `Depuis ${med.startDate}`;
+                        pdf.text(`${index + 1}. ${med.name}${med.dosage ? ` - ${med.dosage}` : ''} (${period})`, 20, yPos);
+                        yPos += 6;
+                    });
+                }
+                
+                // Save the PDF
+                pdf.save(`thymic-report-${new Date().toISOString().split('T')[0]}.pdf`);
+                
+            } catch (error) {
+                console.error('Erreur lors de l\'export PDF:', error);
+                alert('Erreur lors de l\'export PDF. Veuillez réessayer.');
+            }
+        }
+
+        function importData() {
+            document.getElementById('file-input').click();
+        }
+
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    // Validate data structure
+                    if (importedData.episodes && importedData.medications && importedData.substances) {
+                        data = importedData;
+                        saveData();
+                        
+                        // Update all displays
+                        renderEpisodes();
+                        renderMedications();
+                        renderSubstances();
+                        renderEpisodeSummary();
+                        updateTimelines();
+                        updateChart();
+                        
+                        alert('Données importées avec succès!');
+                    } else {
+                        alert('Format de fichier invalide.');
+                    }
+                } catch (error) {
+                    alert('Erreur lors de l\'importation: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Calculate and render episode statistics
+        function renderEpisodeSummary() {
+            const summaryContainer = document.getElementById('episode-summary');
+            if (!summaryContainer) return;
+            
+            const episodes = data.episodes;
+            
+            if (episodes.length === 0) {
+                summaryContainer.innerHTML = `
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div class="text-center py-8">
+                            <p class="text-gray-500">Aucun épisode enregistré pour générer des statistiques.</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Calculate statistics
+            let depressiveEpisodes = 0;
+            let hypomanicEpisodes = 0;
+            let subsyndromalFluctuations = 0;
+            const durations = [];
+
+            episodes.forEach(entry => {
+                // Calculate duration in days
+                const startDate = new Date(entry.startDate);
+                const endDate = entry.endDate ? new Date(entry.endDate) : new Date();
+                const duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                durations.push(duration);
+
+                // Classify episodes by intensity
+                const intensity = Math.abs(entry.moodLevel);
+                
+                if (entry.moodLevel < 0) {
+                    if (intensity >= 3) {
+                        depressiveEpisodes++;
+                    } else {
+                        subsyndromalFluctuations++;
+                    }
+                } else if (entry.moodLevel > 0) {
+                    if (intensity >= 3) {
+                        hypomanicEpisodes++;
+                    } else {
+                        subsyndromalFluctuations++;
+                    }
+                } else {
+                    subsyndromalFluctuations++;
+                }
+            });
+
+            const totalEpisodes = episodes.length;
+            const averageDuration = durations.length > 0 
+                ? Math.round(durations.reduce((sum, d) => sum + d, 0) / durations.length)
+                : 0;
+            const longestEpisode = durations.length > 0 ? Math.max(...durations) : 0;
+            const shortestEpisode = durations.length > 0 ? Math.min(...durations) : 0;
+
+            // Get episode dates
+            const sortedEntries = [...episodes].sort((a, b) => 
+                new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+            );
+            const firstEpisode = new Date(sortedEntries[0].startDate);
+            const lastEpisode = new Date(sortedEntries[sortedEntries.length - 1].startDate);
+
+            // Calculate percentages
+            const getPercentage = (value) => {
+                return totalEpisodes > 0 ? Math.round((value / totalEpisodes) * 100) : 0;
+            };
+
+            summaryContainer.innerHTML = `
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div class="flex items-center mb-6">
+                        <div class="w-2 h-8 bg-blue-500 rounded-full mr-4"></div>
+                        <h2 class="text-xl font-semibold text-gray-900">Récapitulatif des Épisodes</h2>
+                    </div>
+
+                    <div class="space-y-6">
+                        <!-- Période de suivi -->
+                        <div class="bg-blue-50 rounded-lg p-4">
+                            <h3 class="font-semibold text-blue-900 mb-2">📅 Période de Suivi</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm text-blue-700">Premier épisode enregistré :</p>
+                                    <p class="font-medium text-blue-900">${firstEpisode.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-blue-700">Dernier épisode enregistré :</p>
+                                    <p class="font-medium text-blue-900">${lastEpisode.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Répartition des épisodes -->
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <h3 class="font-semibold text-gray-900 mb-4">📊 Répartition des Épisodes</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                                    <div class="text-2xl font-bold text-red-700">${depressiveEpisodes}</div>
+                                    <div class="text-sm text-red-600">Épisodes dépressifs</div>
+                                    <div class="text-xs text-red-500">${getPercentage(depressiveEpisodes)}% du total</div>
+                                </div>
+                                <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+                                    <div class="text-2xl font-bold text-orange-700">${hypomanicEpisodes}</div>
+                                    <div class="text-sm text-orange-600">Épisodes hypomaniaques</div>
+                                    <div class="text-xs text-orange-500">${getPercentage(hypomanicEpisodes)}% du total</div>
+                                </div>
+                                <div class="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                                    <div class="text-2xl font-bold text-green-700">${subsyndromalFluctuations}</div>
+                                    <div class="text-sm text-green-600">Fluctuations mineures</div>
+                                    <div class="text-xs text-green-500">${getPercentage(subsyndromalFluctuations)}% du total</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Durées des épisodes -->
+                        <div class="bg-purple-50 rounded-lg p-4">
+                            <h3 class="font-semibold text-purple-900 mb-4">⏱️ Durées des Épisodes</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-purple-700">${averageDuration}</div>
+                                    <div class="text-sm text-purple-600">Durée moyenne (jours)</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-purple-700">${longestEpisode}</div>
+                                    <div class="text-sm text-purple-600">Plus long épisode (jours)</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-purple-700">${shortestEpisode}</div>
+                                    <div class="text-sm text-purple-600">Plus court épisode (jours)</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Total général -->
+                        <div class="bg-slate-50 border-l-4 border-slate-400 p-4">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0">
+                                    <div class="w-8 h-8 bg-slate-400 rounded-full flex items-center justify-center">
+                                        <span class="text-white font-bold text-sm">${totalEpisodes}</span>
+                                    </div>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm font-medium text-slate-900">Total des épisodes enregistrés</p>
+                                    <p class="text-sm text-slate-600">Période de suivi active depuis ${Math.ceil((new Date() - firstEpisode) / (1000 * 60 * 60 * 24))} jours</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Initialize application when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing thymic lifeline application...');
+            
+            // Load data from localStorage or use test data
+            const savedEpisodes = localStorage.getItem('thymic-episodes');
+            const savedMedications = localStorage.getItem('thymic-medications');
+            const savedSubstances = localStorage.getItem('thymic-substances');
+            
+            if (!savedEpisodes || !savedMedications || !savedSubstances) {
+                data = generateTestData();
+                saveData();
+            } else {
+                data.episodes = JSON.parse(savedEpisodes);
+                data.medications = JSON.parse(savedMedications);
+                data.substances = JSON.parse(savedSubstances);
+            }
+            
+            // Initialize all components
+            renderEpisodes();
+            renderMedications();
+            renderSubstances();
+            renderEpisodeSummary();
+            initializeChart();
+            
+            // Initialize timelines after a short delay to ensure chart is ready
+            setTimeout(() => {
+                updateTimelines();
+                console.log('Application initialized successfully');
+            }, 200);
+            
+            // Add keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (!chart) return;
+                
+                const currentRange = chart.scales.x.max - chart.scales.x.min;
+                const panAmount = currentRange * 0.1; // Pan by 10% of current view
+                
+                switch(e.key) {
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        chart.pan({x: -panAmount}, undefined, 'default');
+                        updateTimelines();
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        chart.pan({x: panAmount}, undefined, 'default');
+                        updateTimelines();
+                        break;
+                    case 'Home':
+                        e.preventDefault();
+                        chart.resetZoom();
+                        updateTimelines();
+                        break;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
